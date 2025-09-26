@@ -37,7 +37,6 @@ export default function LobbyPage() {
       // Set initial room data in the background.
       await set(roomRef, { 
         host: user.name,
-        seats: Array(2).fill(null).map((_, i) => ({ id: i, user: null })),
         createdAt: Date.now()
       });
 

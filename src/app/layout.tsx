@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import '@livekit/components-styles';
 import { Alegreya } from 'next/font/google';
 import { cn } from '@/lib/utils';
 import { AppProviders } from '@/app/providers';
