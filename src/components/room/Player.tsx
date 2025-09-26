@@ -4,10 +4,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Play, Search, X, Film } from 'lucide-react';
+import { Play, Search, X, Film, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from '../ui/scroll-area';
 import Image from 'next/image';
+import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 
 interface PlayerProps {
   videoUrl: string;
@@ -45,6 +46,7 @@ const Player = ({ videoUrl, onSetVideo, isHost }: PlayerProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<YouTubeVideo[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const videoId = useMemo(() => getYouTubeVideoId(videoUrl), [videoUrl]);
 
@@ -59,19 +61,21 @@ const Player = ({ videoUrl, onSetVideo, isHost }: PlayerProps) => {
     e.preventDefault();
     if (!searchQuery || !isHost) return;
     setIsSearching(true);
-    // In a real app, you would use the YouTube Data API.
-    // Here we will simulate a search by constructing a search URL and hoping for the best.
-    // This is a creative workaround as we cannot use API keys here.
-    // We will just create a few fake results to demonstrate the UI.
-    const fakeResults: YouTubeVideo[] = [
-      { id: { videoId: 'dQw4w9WgXcQ' }, snippet: { title: `"${searchQuery}" - Result 1`, thumbnails: { default: { url: `https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg` } } } },
-      { id: { videoId: 'o-YBDTqX_ZU' }, snippet: { title: `"${searchQuery}" - Result 2`, thumbnails: { default: { url: `https://i.ytimg.com/vi/o-YBDTqX_ZU/default.jpg` } } } },
-      { id: { videoId: '8ybW48rKBME' }, snippet: { title: `"${searchQuery}" - Result 3`, thumbnails: { default: { url: `https://i.ytimg.com/vi/8ybW48rKBME/default.jpg` } } } },
-      { id: { videoId: 'C_blVSouVlA' }, snippet: { title: `"${searchQuery}" - Result 4`, thumbnails: { default: { url: `https://i.ytimg.com/vi/C_blVSouVlA/default.jpg` } } } },
-      { id: { videoId: 'V2hlQkVJZhE' }, snippet: { title: `"${searchQuery}" - Result 5`, thumbnails: { default: { url: `https://i.ytimg.com/vi/V2hlQkVJZhE/default.jpg` } } } },
-    ];
-    setSearchResults(fakeResults);
-    setIsSearching(false);
+    setSearchError(null);
+    setSearchResults([]);
+    try {
+      const results = await searchYoutube({ query: searchQuery });
+      setSearchResults(results.items);
+    } catch (error) {
+        console.error("YouTube search failed:", error);
+        if (error instanceof Error && error.message.includes('YOUTUBE_API_KEY is not set')) {
+            setSearchError("مفتاح واجهة برمجة تطبيقات YouTube غير مهيأ. يرجى إضافته إلى ملف .env للمتابعة.");
+        } else {
+            setSearchError("فشل البحث في يوتيوب. يرجى المحاولة مرة أخرى.");
+        }
+    } finally {
+        setIsSearching(false);
+    }
   };
   
   const handleSelectVideo = (videoId: string) => {
@@ -79,6 +83,7 @@ const Player = ({ videoUrl, onSetVideo, isHost }: PlayerProps) => {
       onSetVideo(`https://www.youtube.com/watch?v=${videoId}`);
       setSearchResults([]);
       setSearchQuery('');
+      setSearchError(null);
     }
   };
 
@@ -112,34 +117,53 @@ const Player = ({ videoUrl, onSetVideo, isHost }: PlayerProps) => {
               )}
             </div>
           )}
-           {searchResults.length > 0 && isHost && (
+           {(searchResults.length > 0 || isSearching || searchError) && isHost && (
             <div className="absolute inset-0 bg-background/95 backdrop-blur-sm z-10 flex flex-col">
               <div className="p-4 flex justify-between items-center border-b border-accent/20">
                 <h3 className="text-lg font-bold">نتائج البحث عن: "{searchQuery}"</h3>
-                <Button variant="ghost" size="icon" onClick={() => setSearchResults([])}>
+                <Button variant="ghost" size="icon" onClick={() => { setSearchResults([]); setSearchError(null); }}>
                   <X className="h-5 w-5" />
                 </Button>
               </div>
-              <ScrollArea className="flex-grow">
-                <div className="p-4 space-y-2">
-                  {searchResults.map((video) => (
-                    <div
-                      key={video.id.videoId}
-                      className="flex items-center gap-4 p-2 rounded-md hover:bg-accent/20 cursor-pointer"
-                      onClick={() => handleSelectVideo(video.id.videoId)}
-                    >
-                      <Image
-                        src={video.snippet.thumbnails.default.url}
-                        alt={video.snippet.title}
-                        width={120}
-                        height={90}
-                        className="rounded"
-                      />
-                      <p className="font-medium text-foreground">{video.snippet.title}</p>
+              <div className="flex-grow relative">
+                {isSearching && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="h-8 w-8 animate-spin text-accent" />
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
+                )}
+                {searchError && (
+                    <div className="absolute inset-0 flex items-center justify-center p-4">
+                        <p className="text-center text-destructive">{searchError}</p>
+                    </div>
+                )}
+                {!isSearching && !searchError && searchResults.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <p className="text-muted-foreground">لم يتم العثور على نتائج.</p>
+                    </div>
+                )}
+                {searchResults.length > 0 && (
+                    <ScrollArea className="h-full">
+                        <div className="p-4 space-y-2">
+                        {searchResults.map((video) => (
+                            <div
+                            key={video.id.videoId}
+                            className="flex items-center gap-4 p-2 rounded-md hover:bg-accent/20 cursor-pointer"
+                            onClick={() => handleSelectVideo(video.id.videoId)}
+                            >
+                            <Image
+                                src={video.snippet.thumbnails.default.url}
+                                alt={video.snippet.title}
+                                width={120}
+                                height={90}
+                                className="rounded"
+                            />
+                            <p className="font-medium text-foreground">{video.snippet.title}</p>
+                            </div>
+                        ))}
+                        </div>
+                    </ScrollArea>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -166,7 +190,7 @@ const Player = ({ videoUrl, onSetVideo, isHost }: PlayerProps) => {
                   disabled={isSearching}
                 />
                 <Button type="submit" variant="default" disabled={isSearching}>
-                  <Search className="h-4 w-4" />
+                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 </Button>
               </form>
             </TabsContent>
