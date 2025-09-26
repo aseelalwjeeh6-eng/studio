@@ -45,6 +45,9 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   }, [roomId]);
 
   useEffect(() => {
+    const isClient = typeof window !== 'undefined';
+    if (!isClient) return;
+
     if (isLoaded && !userName) {
       router.push('/');
       return;
@@ -208,11 +211,11 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
        </div>
       
       <div className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
-        <div className="lg:col-span-2 flex flex-col gap-4">
+        <div className="lg:col-span-2 flex flex-col gap-2">
           <Player videoUrl={videoUrl} onSetVideo={handleSetVideo} isHost={isHost} />
           <Seats seats={seats} onTakeSeat={handleTakeSeat} />
         </div>
-        <div className="flex flex-col min-h-0">
+        <div className="lg:col-span-1 flex flex-col min-h-0">
           <Chat roomId={roomId} user={user} />
         </div>
       </div>
@@ -221,5 +224,3 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
 };
 
 export default RoomClient;
-
-    
