@@ -11,8 +11,9 @@ import Chat from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { User as UserType } from '@/app/providers';
 import { Button } from '../ui/button';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Share2 } from 'lucide-react';
 import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
 
 type Member = { name: string; joinedAt: object };
 
@@ -24,6 +25,7 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   const [videoUrl, setVideoUrl] = useState('');
   const [isHost, setIsHost] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   const userName = useMemo(() => user?.name, [user]);
 
@@ -46,9 +48,6 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     const checkRoomExists = async () => {
       const roomSnapshot = await get(roomRef);
       if (!roomSnapshot.exists()) {
-        // This case should ideally not happen if rooms are created from the lobby
-        // but as a fallback, we can create it here or redirect.
-        // For now, we'll assume lobby creation is the primary path.
         console.warn('Room does not exist, redirecting to lobby.');
         router.push('/lobby');
         return;
@@ -87,9 +86,16 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
 
     return () => {
       listeners.forEach(unsubscribe => unsubscribe());
-      // No need to set userRef to null, onDisconnect handles it.
     };
   }, [userName, roomId, router]);
+
+  const handleShareRoom = () => {
+    navigator.clipboard.writeText(roomId);
+    toast({
+      title: 'تم نسخ رمز الغرفة!',
+      description: 'يمكنك الآن مشاركته مع أصدقائك.',
+    });
+  };
 
   const handleSetVideo = (url: string) => {
     if (isHost && url) {
@@ -121,12 +127,18 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   return (
     <div className="h-screen w-full flex flex-col bg-background overflow-hidden p-2 sm:p-4 gap-4">
        <div className="flex items-center justify-between">
-         <Link href="/lobby" legacyBehavior>
-            <Button variant="outline" size="sm" className="bg-card/50 backdrop-blur-sm">
-                <ArrowLeft className="h-4 w-4 me-2" />
-                العودة إلى الردهة
+         <div className="flex items-center gap-2">
+            <Link href="/lobby" legacyBehavior>
+                <Button variant="outline" size="sm" className="bg-card/50 backdrop-blur-sm">
+                    <ArrowLeft className="h-4 w-4 me-2" />
+                    العودة إلى الردهة
+                </Button>
+            </Link>
+            <Button variant="outline" size="sm" className="bg-card/50 backdrop-blur-sm" onClick={handleShareRoom}>
+                <Share2 className="h-4 w-4 me-2" />
+                مشاركة الغرفة
             </Button>
-         </Link>
+         </div>
          <ViewerInfo members={members} />
        </div>
       
