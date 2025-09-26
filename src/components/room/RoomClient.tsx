@@ -39,26 +39,40 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     if (!userName || !roomId) return;
 
     const roomRef = ref(database, `rooms/${roomId}`);
-    const membersRef = ref(database, `rooms/${roomId}/members`);
-    const userRef = ref(database, `rooms/${roomId}/members/${userName}`);
-    const seatsRef = ref(database, `rooms/${roomId}/seats`);
-    const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
     const hostRef = ref(database, `rooms/${roomId}/host`);
-
+    
     const checkRoomExists = async () => {
       const roomSnapshot = await get(roomRef);
       if (!roomSnapshot.exists()) {
         console.warn('Room does not exist, redirecting to lobby.');
+        toast({
+          title: 'الغرفة غير موجودة',
+          description: 'الرمز الذي أدخلته غير صحيح أو أن الغرفة حُذفت.',
+          variant: 'destructive',
+        });
         router.push('/lobby');
         return;
       }
-
       const hostSnapshot = await get(hostRef);
       setIsHost(hostSnapshot.val() === userName);
       setIsLoading(false);
     };
 
     checkRoomExists();
+  }, [userName, roomId, router, toast]);
+
+  useEffect(() => {
+    if (!userName || !roomId || isLoading) return;
+
+    const membersRef = ref(database, `rooms/${roomId}/members`);
+    const userRef = ref(database, `rooms/${roomId}/members/${userName}`);
+    const seatsRef = ref(database, `rooms/${roomId}/seats`);
+    const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
+    
+    set(userRef, { name: userName, joinedAt: serverTimestamp() });
+    onDisconnect(userRef).remove();
+    
+    const onDisconnectCallbacks: Function[] = [];
 
     const listeners = [
       onValue(membersRef, (snapshot) => {
@@ -69,10 +83,15 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
       onValue(seatsRef, (snapshot) => {
         const currentSeats: Seat[] = snapshot.val() || Array(4).fill(null).map((_, i) => ({ id: i, user: null }));
         setSeats(currentSeats);
+        
+        onDisconnectCallbacks.forEach(cb => cb());
+        onDisconnectCallbacks.length = 0;
+
         const userSeat = currentSeats.find(s => s?.user?.name === userName);
         if (userSeat) {
           const userSeatRef = ref(database, `rooms/${roomId}/seats/${userSeat.id}`);
-          onDisconnect(userSeatRef).update({ user: null });
+          const disconnectCb = onDisconnect(userSeatRef).update({ user: null });
+          onDisconnectCallbacks.push(() => disconnectCb.cancel());
         }
       }),
 
@@ -81,13 +100,11 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
       }),
     ];
 
-    set(userRef, { name: userName, joinedAt: serverTimestamp() });
-    onDisconnect(userRef).remove();
-
     return () => {
       listeners.forEach(unsubscribe => unsubscribe());
+      onDisconnectCallbacks.forEach(cb => cb());
     };
-  }, [userName, roomId, router]);
+  }, [userName, roomId, isLoading]);
 
   const handleShareRoom = () => {
     navigator.clipboard.writeText(roomId);
