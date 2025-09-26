@@ -109,9 +109,9 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     });
 
     return () => {
-      onMembersValue();
-      onSeatsValue();
-      onVideoUrlValue();
+      onValue(membersRef, () => {});
+      onValue(seatsRef, () => {});
+      onValue(videoUrlRef, () => {});
       
       if (disconnectPresence) {
           disconnectPresence.cancel();
@@ -127,7 +127,6 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
           }
       });
       
-      // We need to get the latest seats value inside the cleanup function
       get(seatsRef).then(seatsSnapshot => {
         const currentSeats: (Seat | null)[] = seatsSnapshot.val() || [];
         const userSeat = currentSeats.find(s => s?.user?.name === userName);
@@ -194,12 +193,12 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     <div className="h-screen w-full flex flex-col bg-background overflow-hidden p-2 sm:p-4 gap-4">
        <div className="flex items-center justify-between">
          <div className="flex items-center gap-2">
-            <Link href="/lobby">
-                <Button variant="outline" size="sm" className="bg-card/50 backdrop-blur-sm">
+            <Button asChild variant="outline" size="sm" className="bg-card/50 backdrop-blur-sm">
+                <Link href="/lobby">
                     <ArrowLeft className="h-4 w-4 me-2" />
                     العودة إلى الردهة
-                </Button>
-            </Link>
+                </Link>
+            </Button>
             <Button variant="outline" size="sm" className="bg-card/50 backdrop-blur-sm" onClick={handleShareRoom}>
                 <Share2 className="h-4 w-4 me-2" />
                 مشاركة الغرفة
@@ -222,3 +221,5 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
 };
 
 export default RoomClient;
+
+    

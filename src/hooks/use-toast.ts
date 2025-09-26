@@ -1,4 +1,4 @@
-"use client"
+'use client';
 
 // Inspired by react-hot-toast library
 import * as React from "react"
@@ -173,8 +173,10 @@ function toast({ ...props }: Toast) {
 
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
+  const isClient = typeof window !== 'undefined';
 
   React.useEffect(() => {
+    if (!isClient) return;
     listeners.push(setState)
     return () => {
       const index = listeners.indexOf(setState)
@@ -182,7 +184,7 @@ function useToast() {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+  }, [state, isClient])
 
   return {
     ...state,
