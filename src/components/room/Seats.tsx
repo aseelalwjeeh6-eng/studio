@@ -21,12 +21,12 @@ interface SeatsProps {
 const Seats = ({ seats, onTakeSeat }: SeatsProps) => {
   const avatarImages = PlaceHolderImages.filter(p => p.id.startsWith('avatar'));
 
-  // Ensure seats is always an array of 4
+  // Ensure seats is always an array of 2
   const displaySeats = React.useMemo(() => {
-    const filledSeats = Array(4).fill(null).map((_, i) => ({ id: i, user: null }));
+    const filledSeats = Array(2).fill(null).map((_, i) => ({ id: i, user: null }));
     if (Array.isArray(seats)) {
       seats.forEach(seat => {
-        if (seat && seat.id >= 0 && seat.id < 4) {
+        if (seat && seat.id >= 0 && seat.id < 2) {
           filledSeats[seat.id] = seat;
         }
       });
@@ -38,7 +38,7 @@ const Seats = ({ seats, onTakeSeat }: SeatsProps) => {
   return (
     <Card className="bg-card/50 backdrop-blur-lg border-accent/20">
       <CardContent className="p-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           {displaySeats.map((seat, index) => (
             <div
               key={seat?.id ?? index}
