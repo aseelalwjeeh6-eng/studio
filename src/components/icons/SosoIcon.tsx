@@ -14,28 +14,6 @@ export function SosoIcon({ className }: { className?: string }) {
         strokeWidth="5"
         fill="hsl(var(--primary))"
       />
-      <text
-        x="50"
-        y="65"
-        fontFamily="Alegreya, serif"
-        fontSize="40"
-        fill="hsl(var(--accent))"
-        textAnchor="middle"
-        fontWeight="bold"
-      >
-        S
-      </text>
-       <text
-        x="30"
-        y="65"
-        fontFamily="Alegreya, serif"
-        fontSize="40"
-        fill="hsl(var(--accent))"
-        textAnchor="middle"
-        fontWeight="bold"
-      >
-        A
-      </text>
     </svg>
   );
 }

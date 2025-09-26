@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext } from 'react';
+import { useContext, useMemo } from 'react';
 import { UserContext, User } from '@/app/providers';
 
 const useUserSession = () => {
@@ -9,7 +9,7 @@ const useUserSession = () => {
     throw new Error('useUserSession must be used within a UserProvider');
   }
 
-  const { user, setUser: setContextUser, isLoaded } = context;
+  const { user: contextUser, setUser: setContextUser, isLoaded } = context;
 
   const setUser = (newUser: User | null) => {
     if (typeof window !== 'undefined') {
@@ -21,6 +21,8 @@ const useUserSession = () => {
     }
     setContextUser(newUser);
   };
+  
+  const user = useMemo(() => contextUser, [contextUser]);
 
   return { user, setUser, isLoaded };
 };

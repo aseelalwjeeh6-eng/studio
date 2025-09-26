@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Film, PlusCircle, LogIn } from 'lucide-react';
+import { Film, PlusCircle, LogIn, Loader2 } from 'lucide-react';
 import useUserSession from '@/hooks/use-user-session';
 import { useEffect } from 'react';
 
@@ -36,7 +36,7 @@ export default function LobbyPage() {
   if (!isLoaded || !user) {
     return (
         <div className="flex h-screen items-center justify-center">
-            <div className="text-xl">جاري التحميل...</div>
+            <Loader2 className="h-16 w-16 animate-spin text-accent" />
         </div>
     );
   }

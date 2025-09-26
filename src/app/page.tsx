@@ -7,17 +7,18 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import useUserSession from '@/hooks/use-user-session';
+import { Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [name, setName] = useState('');
-  const { user, setUser } = useUserSession();
+  const { user, setUser, isLoaded } = useUserSession();
   const router = useRouter();
 
   useEffect(() => {
-    if (user?.name) {
+    if (isLoaded && user?.name) {
       router.push('/lobby');
     }
-  }, [user, router]);
+  }, [isLoaded, user, router]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,8 +28,12 @@ export default function LoginPage() {
     }
   };
 
-  if (user?.name) {
-    return null; 
+  if (!isLoaded || user?.name) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-16 w-16 animate-spin text-accent" />
+      </div>
+    );
   }
 
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { database } from '@/lib/firebase';
 import { ref, onValue, set, onDisconnect, serverTimestamp } from 'firebase/database';
@@ -11,7 +11,7 @@ import Chat from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { User as UserType } from '@/app/providers';
 import { Button } from '../ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 type Member = { name: string; joinedAt: object };
@@ -23,69 +23,69 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   const [seats, setSeats] = useState<Seat[]>([]);
   const [videoUrl, setVideoUrl] = useState('');
   const [isHost, setIsHost] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const userName = useMemo(() => user?.name, [user]);
 
   useEffect(() => {
-    if (isLoaded && !user) {
+    if (isLoaded && !userName) {
       router.push('/');
     }
-  }, [isLoaded, user, router]);
+  }, [isLoaded, userName, router]);
 
   useEffect(() => {
-    if (!user || !roomId) return;
+    if (!userName || !roomId) return;
 
     const roomRef = ref(database, `rooms/${roomId}`);
     const membersRef = ref(database, `rooms/${roomId}/members`);
-    const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+    const userRef = ref(database, `rooms/${roomId}/members/${userName}`);
     const seatsRef = ref(database, `rooms/${roomId}/seats`);
     const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
     const hostRef = ref(database, `rooms/${roomId}/host`);
 
-    onValue(roomRef, (snapshot) => {
+    const listeners = [
+      onValue(roomRef, (snapshot) => {
         if (!snapshot.exists()) {
-            // New room, this user is the host
-            setIsHost(true);
-            set(hostRef, user.name);
-            const initialSeats: Seat[] = Array(4).fill(null).map((_, i) => ({ id: i, user: null }));
-            set(seatsRef, initialSeats);
-            setSeats(initialSeats);
+          setIsHost(true);
+          set(hostRef, userName);
+          const initialSeats: Seat[] = Array(4).fill(null).map((_, i) => ({ id: i, user: null }));
+          set(seatsRef, initialSeats);
         } else {
-             onValue(hostRef, (hostSnapshot) => {
-                setIsHost(hostSnapshot.val() === user.name);
-            });
+          onValue(hostRef, (hostSnapshot) => {
+            setIsHost(hostSnapshot.val() === userName);
+          }, { onlyOnce: true });
         }
-    });
+        setIsLoading(false);
+      }, { onlyOnce: true }),
 
-    set(userRef, { name: user.name, joinedAt: serverTimestamp() });
+      onValue(membersRef, (snapshot) => {
+        const data = snapshot.val();
+        setMembers(data ? Object.values(data) : []);
+      }),
+
+      onValue(seatsRef, (snapshot) => {
+        const currentSeats: Seat[] = snapshot.val() || Array(4).fill(null).map((_, i) => ({ id: i, user: null }));
+        setSeats(currentSeats);
+        const userSeat = currentSeats.find(s => s?.user?.name === userName);
+        if (userSeat) {
+          const userSeatRef = ref(database, `rooms/${roomId}/seats/${userSeat.id}`);
+          onDisconnect(userSeatRef).update({ user: null });
+        }
+      }),
+
+      onValue(videoUrlRef, (snapshot) => {
+        setVideoUrl(snapshot.val() || '');
+      }),
+    ];
+
+    set(userRef, { name: userName, joinedAt: serverTimestamp() });
     onDisconnect(userRef).remove();
-    
-    // Also remove user from seat on disconnect
-    onValue(seatsRef, (snapshot) => {
-        const currentSeats: Seat[] = snapshot.val() || [];
-        const userSeat = currentSeats.find(s => s?.user?.name === user.name);
-        if(userSeat) {
-            const userSeatRef = ref(database, `rooms/${roomId}/seats/${userSeat.id}`);
-            onDisconnect(userSeatRef).update({ user: null });
-        }
-    });
-
-
-    onValue(membersRef, (snapshot) => {
-      const data = snapshot.val();
-      setMembers(data ? Object.values(data) : []);
-    });
-
-    onValue(seatsRef, (snapshot) => {
-      setSeats(snapshot.val() || Array(4).fill(null).map((_, i) => ({ id: i, user: null })));
-    });
-
-    onValue(videoUrlRef, (snapshot) => {
-      setVideoUrl(snapshot.val() || '');
-    });
 
     return () => {
+      listeners.forEach(unsubscribe => unsubscribe());
       set(userRef, null);
     };
-  }, [user, roomId, router]);
+  }, [userName, roomId, router]);
 
   const handleSetVideo = (url: string) => {
     if (isHost && url) {
@@ -95,21 +95,23 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   };
 
   const handleTakeSeat = (seatId: number) => {
-    if (!user) return;
-    const currentSeat = seats.find(s => s?.user?.name === user.name);
+    if (!userName) return;
+    const currentSeat = seats.find(s => s?.user?.name === userName);
     if(currentSeat && currentSeat.id !== seatId) {
-        // User is already seated, remove from old seat first
         const oldSeatRef = ref(database, `rooms/${roomId}/seats/${currentSeat.id}`);
         set(oldSeatRef, { id: currentSeat.id, user: null });
     }
 
     const seatRef = ref(database, `rooms/${roomId}/seats/${seatId}`);
-    set(seatRef, { id: seatId, user: { name: user.name } });
+    set(seatRef, { id: seatId, user: { name: userName } });
   };
 
-
-  if (!isLoaded || !user) {
-    return <div className="flex h-screen items-center justify-center text-xl">جاري التحميل...</div>;
+  if (!isLoaded || !user || isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-16 w-16 animate-spin text-accent" />
+      </div>
+    );
   }
 
   return (

@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { User as UserIcon } from 'lucide-react';
+import { User as UserIcon, Loader2 } from 'lucide-react';
 
 export default function ProfilePage() {
   const { user, isLoaded } = useUserSession();
@@ -23,7 +23,7 @@ export default function ProfilePage() {
   if (!isLoaded || !user) {
      return (
         <div className="flex h-screen items-center justify-center">
-            <div className="text-xl">جاري التحميل...</div>
+            <Loader2 className="h-16 w-16 animate-spin text-accent" />
         </div>
     );
   }
