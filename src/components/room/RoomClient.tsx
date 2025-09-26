@@ -127,12 +127,15 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
           }
       });
       
-      const currentSeats = seats;
-      const userSeat = currentSeats.find(s => s?.user?.name === userName);
-      if (userSeat) {
-        const seatRef = ref(database, `rooms/${roomId}/seats/${userSeat.id}`);
-        set(seatRef, {id: userSeat.id, user: null});
-      }
+      // We need to get the latest seats value inside the cleanup function
+      get(seatsRef).then(seatsSnapshot => {
+        const currentSeats: (Seat | null)[] = seatsSnapshot.val() || [];
+        const userSeat = currentSeats.find(s => s?.user?.name === userName);
+        if (userSeat) {
+          const seatRef = ref(database, `rooms/${roomId}/seats/${userSeat.id}`);
+          set(seatRef, {id: userSeat.id, user: null});
+        }
+      });
       
       goOffline(database);
     };
@@ -191,7 +194,7 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     <div className="h-screen w-full flex flex-col bg-background overflow-hidden p-2 sm:p-4 gap-4">
        <div className="flex items-center justify-between">
          <div className="flex items-center gap-2">
-            <Link href="/lobby" legacyBehavior>
+            <Link href="/lobby">
                 <Button variant="outline" size="sm" className="bg-card/50 backdrop-blur-sm">
                     <ArrowLeft className="h-4 w-4 me-2" />
                     العودة إلى الردهة

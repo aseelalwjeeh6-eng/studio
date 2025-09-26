@@ -32,15 +32,17 @@ export function MainHeader() {
 
         <nav className="flex items-center gap-2 sm:gap-4 rounded-full bg-background/50 p-1 border border-transparent">
           {navLinks.map((link) => (
-            <Link key={link.href} href={link.href} legacyBehavior>
-              <a className={cn(
-                "rounded-full px-4 py-2 text-sm sm:text-base font-medium transition-colors",
+            <Link
+              key={link.href}
+              href={link.href}
+              className={cn(
+                'rounded-full px-4 py-2 text-sm sm:text-base font-medium transition-colors',
                 pathname === link.href
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}>
-                {link.label}
-              </a>
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {link.label}
             </Link>
           ))}
         </nav>

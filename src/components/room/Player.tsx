@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,6 +26,7 @@ interface YouTubeVideo {
 }
 
 function getYouTubeVideoId(url: string) {
+  if (!url) return '';
   try {
     const urlObj = new URL(url);
     if (urlObj.hostname === 'youtu.be') {
@@ -45,7 +46,7 @@ const Player = ({ videoUrl, onSetVideo, isHost }: PlayerProps) => {
   const [searchResults, setSearchResults] = useState<YouTubeVideo[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  const videoId = useMemo(() => videoUrl ? getYouTubeVideoId(videoUrl) : '', [videoUrl]);
+  const videoId = useMemo(() => getYouTubeVideoId(videoUrl), [videoUrl]);
 
   const handleUrlSubmit = (e: React.FormEvent) => {
     e.preventDefault();
