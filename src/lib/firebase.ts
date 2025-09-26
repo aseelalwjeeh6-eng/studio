@@ -10,6 +10,7 @@ import { getAnalytics } from "firebase/analytics";
 const firebaseConfig = {
   apiKey: "AIzaSyDSm7AADP9BzbMvgRy04JSCviZUwx1KCtA",
   authDomain: "aseel-baa6e.firebaseapp.com",
+  databaseURL: "https://aseel-baa6e-default-rtdb.firebaseio.com",
   projectId: "aseel-baa6e",
   storageBucket: "aseel-baa6e.appspot.com",
   messagingSenderId: "44546543857",
