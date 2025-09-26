@@ -9,9 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Film, PlusCircle, LogIn, Loader2 } from 'lucide-react';
 import useUserSession from '@/hooks/use-user-session';
 import { useEffect } from 'react';
+import { database } from '@/lib/firebase';
+import { ref, set } from 'firebase/database';
+import type { Seat } from '@/components/room/Seats';
 
 export default function LobbyPage() {
   const [roomId, setRoomId] = useState('');
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const router = useRouter();
   const { isLoaded, user } = useUserSession();
 
@@ -21,9 +25,27 @@ export default function LobbyPage() {
     }
   }, [isLoaded, user, router]);
 
-  const handleCreateRoom = () => {
+  const handleCreateRoom = async () => {
+    if (!user) return;
+    setIsCreatingRoom(true);
     const newRoomId = uuidv4();
-    router.push(`/rooms/${newRoomId}`);
+    
+    try {
+      const roomRef = ref(database, `rooms/${newRoomId}`);
+      const hostRef = ref(database, `rooms/${newRoomId}/host`);
+      const seatsRef = ref(database, `rooms/${newRoomId}/seats`);
+      
+      const initialSeats: Seat[] = Array(4).fill(null).map((_, i) => ({ id: i, user: null }));
+
+      // Set initial room data
+      await set(hostRef, user.name);
+      await set(seatsRef, initialSeats);
+      
+      router.push(`/rooms/${newRoomId}`);
+    } catch (error) {
+      console.error("Failed to create room:", error);
+      setIsCreatingRoom(false);
+    }
   };
 
   const handleJoinRoom = (e: React.FormEvent) => {
@@ -64,9 +86,13 @@ export default function LobbyPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={handleCreateRoom} className="w-full h-12 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
-              <Film className="me-2 h-5 w-5" />
-              إنشاء وعرض
+            <Button onClick={handleCreateRoom} className="w-full h-12 text-lg bg-accent text-accent-foreground hover:bg-accent/90" disabled={isCreatingRoom}>
+              {isCreatingRoom ? (
+                <Loader2 className="me-2 h-5 w-5 animate-spin" />
+              ) : (
+                <Film className="me-2 h-5 w-5" />
+              )}
+              {isCreatingRoom ? 'جاري الإنشاء...' : 'إنشاء وعرض'}
             </Button>
           </CardContent>
         </Card>

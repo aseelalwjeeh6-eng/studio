@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { database } from '@/lib/firebase';
-import { ref, onValue, set, onDisconnect, serverTimestamp } from 'firebase/database';
+import { ref, onValue, set, onDisconnect, serverTimestamp, get } from 'firebase/database';
 import useUserSession from '@/hooks/use-user-session';
 import Player from './Player';
 import Seats, { Seat } from './Seats';
@@ -43,21 +43,25 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
     const hostRef = ref(database, `rooms/${roomId}/host`);
 
-    const listeners = [
-      onValue(roomRef, (snapshot) => {
-        if (!snapshot.exists()) {
-          setIsHost(true);
-          set(hostRef, userName);
-          const initialSeats: Seat[] = Array(4).fill(null).map((_, i) => ({ id: i, user: null }));
-          set(seatsRef, initialSeats);
-        } else {
-          onValue(hostRef, (hostSnapshot) => {
-            setIsHost(hostSnapshot.val() === userName);
-          }, { onlyOnce: true });
-        }
-        setIsLoading(false);
-      }, { onlyOnce: true }),
+    const checkRoomExists = async () => {
+      const roomSnapshot = await get(roomRef);
+      if (!roomSnapshot.exists()) {
+        // This case should ideally not happen if rooms are created from the lobby
+        // but as a fallback, we can create it here or redirect.
+        // For now, we'll assume lobby creation is the primary path.
+        console.warn('Room does not exist, redirecting to lobby.');
+        router.push('/lobby');
+        return;
+      }
 
+      const hostSnapshot = await get(hostRef);
+      setIsHost(hostSnapshot.val() === userName);
+      setIsLoading(false);
+    };
+
+    checkRoomExists();
+
+    const listeners = [
       onValue(membersRef, (snapshot) => {
         const data = snapshot.val();
         setMembers(data ? Object.values(data) : []);
@@ -83,7 +87,7 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
 
     return () => {
       listeners.forEach(unsubscribe => unsubscribe());
-      set(userRef, null);
+      // No need to set userRef to null, onDisconnect handles it.
     };
   }, [userName, roomId, router]);
 
