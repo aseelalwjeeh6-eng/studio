@@ -29,85 +29,114 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   const userName = useMemo(() => user?.name, [user]);
 
   const setupPresence = useCallback((name: string) => {
+    goOnline(database);
     const userRef = ref(database, `rooms/${roomId}/members/${name}`);
+    const onDisconnectUserRef = onDisconnect(userRef);
+    onDisconnectUserRef.remove();
     set(userRef, { name, joinedAt: serverTimestamp() });
-    onDisconnect(userRef).remove();
+    return onDisconnectUserRef;
   }, [roomId]);
-
+  
   const handleSeatDisconnect = useCallback((seatId: number) => {
     const seatRef = ref(database, `rooms/${roomId}/seats/${seatId}`);
-    onDisconnect(seatRef).update({ user: null });
+    const onDisconnectSeatRef = onDisconnect(seatRef);
+    onDisconnectSeatRef.update({ user: null });
+    return onDisconnectSeatRef;
   }, [roomId]);
 
   useEffect(() => {
     if (isLoaded && !userName) {
       router.push('/');
+      return;
     }
-  }, [isLoaded, userName, router]);
 
-  useEffect(() => {
-    if (!userName || !roomId) return;
+    if (!userName) {
+      return;
+    }
 
     setIsLoading(true);
+    let disconnectPresence: ReturnType<typeof onDisconnect> | null = null;
+    let disconnectSeat: ReturnType<typeof onDisconnect> | null = null;
+
     const roomRef = ref(database, `rooms/${roomId}`);
-
-    const checkRoomAndSetup = async () => {
-      try {
-        const roomSnapshot = await get(roomRef);
-        if (!roomSnapshot.exists()) {
-          toast({
-            title: 'الغرفة غير موجودة',
-            description: 'الرمز الذي أدخلته غير صحيح أو أن الغرفة حُذفت.',
-            variant: 'destructive',
-          });
-          router.push('/lobby');
-          return;
-        }
-
-        const hostName = roomSnapshot.val().host;
-        setIsHost(hostName === userName);
-        
-        // Setup presence and listeners
-        goOnline(database);
-        setupPresence(userName);
-
-        const membersRef = ref(database, `rooms/${roomId}/members`);
-        const seatsRef = ref(database, `rooms/${roomId}/seats`);
-        const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
-
-        const unsubscribers = [
-          onValue(membersRef, (snapshot) => setMembers(snapshot.val() ? Object.values(snapshot.val()) : [])),
-          onValue(seatsRef, (snapshot) => setSeats(snapshot.val() || [])),
-          onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || '')),
-        ];
-
-        setIsLoading(false);
-
-        return () => {
-          unsubscribers.forEach(unsub => unsub());
-          const userRef = ref(database, `rooms/${roomId}/members/${userName}`);
-          const userSeat = seats.find(s => s?.user?.name === userName);
-          if (userSeat) {
-            const seatRef = ref(database, `rooms/${roomId}/seats/${userSeat.id}`);
-            set(seatRef, { id: userSeat.id, user: null });
-          }
-          set(userRef, null);
-          goOffline(database);
-        };
-      } catch (error) {
-        console.error("Error setting up room:", error);
-        toast({ title: 'حدث خطأ', description: 'لم نتمكن من تحميل الغرفة. حاول مرة أخرى.', variant: 'destructive' });
+    const membersRef = ref(database, `rooms/${roomId}/members`);
+    const seatsRef = ref(database, `rooms/${roomId}/seats`);
+    const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
+    
+    get(roomRef).then((snapshot) => {
+      if (!snapshot.exists()) {
+        toast({
+          title: 'الغرفة غير موجودة',
+          description: 'الرمز الذي أدخلته غير صحيح أو أن الغرفة حُذفت.',
+          variant: 'destructive',
+        });
         router.push('/lobby');
+        return;
       }
-    };
+      
+      const hostName = snapshot.val().host;
+      setIsHost(hostName === userName);
+      
+      disconnectPresence = setupPresence(userName);
 
-    const cleanupPromise = checkRoomAndSetup();
+      const userSeat = (snapshot.val().seats || []).find((s: Seat | null) => s?.user?.name === userName);
+      if (userSeat) {
+        disconnectSeat = handleSeatDisconnect(userSeat.id);
+      }
+
+      setIsLoading(false);
+    }).catch(error => {
+      console.error("Failed to fetch room", error);
+      toast({
+          title: 'حدث خطأ',
+          description: 'لم نتمكن من تحميل الغرفة. حاول مرة أخرى.',
+          variant: 'destructive',
+      });
+      router.push('/lobby');
+    });
+
+    const onMembersValue = onValue(membersRef, (snapshot) => {
+        const data = snapshot.val();
+        setMembers(data ? Object.values(data) : []);
+    });
+
+    const onSeatsValue = onValue(seatsRef, (snapshot) => {
+      setSeats(snapshot.val() || []);
+    });
+
+    const onVideoUrlValue = onValue(videoUrlRef, (snapshot) => {
+        setVideoUrl(snapshot.val() || '');
+    });
 
     return () => {
-      cleanupPromise.then(cleanup => cleanup && cleanup());
+      onMembersValue();
+      onSeatsValue();
+      onVideoUrlValue();
+      
+      if (disconnectPresence) {
+          disconnectPresence.cancel();
+      }
+      if (disconnectSeat) {
+          disconnectSeat.cancel();
+      }
+      
+      const userRef = ref(database, `rooms/${roomId}/members/${userName}`);
+      get(userRef).then(snapshot => {
+          if (snapshot.exists()) {
+              set(userRef, null);
+          }
+      });
+      
+      const currentSeats = seats;
+      const userSeat = currentSeats.find(s => s?.user?.name === userName);
+      if (userSeat) {
+        const seatRef = ref(database, `rooms/${roomId}/seats/${userSeat.id}`);
+        set(seatRef, {id: userSeat.id, user: null});
+      }
+      
+      goOffline(database);
     };
-
-  }, [userName, roomId, router, toast, setupPresence]);
+  }, [isLoaded, userName, roomId, router, toast, setupPresence, handleSeatDisconnect]);
 
 
   const handleShareRoom = () => {
@@ -127,20 +156,27 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
 
   const handleTakeSeat = async (seatId: number) => {
     if (!userName) return;
-  
-    const currentSeatIndex = seats.findIndex(s => s?.user?.name === userName);
     
-    // Clear old seat first if it exists and is different
-    if (currentSeatIndex !== -1 && seats[currentSeatIndex].id !== seatId) {
-      const oldSeatRef = ref(database, `rooms/${roomId}/seats/${seats[currentSeatIndex].id}`);
-      await set(oldSeatRef, { id: seats[currentSeatIndex].id, user: null });
-      onDisconnect(oldSeatRef).cancel(); // Cancel previous onDisconnect
+    const currentSeatsSnapshot = await get(ref(database, `rooms/${roomId}/seats`));
+    const currentSeats: (Seat | null)[] = currentSeatsSnapshot.val() || [];
+  
+    const oldSeatIndex = currentSeats.findIndex(s => s?.user?.name === userName);
+    const newSeatIsTaken = currentSeats[seatId]?.user !== null;
+  
+    if (newSeatIsTaken) {
+      toast({ title: "المقعد محجوز", description: "هذا المقعد занято кем-то другим.", variant: "destructive" });
+      return;
     }
   
-    // Take new seat
+    if (oldSeatIndex !== -1) {
+      const oldSeatRef = ref(database, `rooms/${roomId}/seats/${oldSeatIndex}`);
+      onDisconnect(oldSeatRef).cancel();
+      await set(oldSeatRef, { ...currentSeats[oldSeatIndex], user: null });
+    }
+  
     const newSeatRef = ref(database, `rooms/${roomId}/seats/${seatId}`);
     await set(newSeatRef, { id: seatId, user: { name: userName } });
-    handleSeatDisconnect(seatId); // Setup new onDisconnect
+    handleSeatDisconnect(seatId);
   };
 
   if (!isLoaded || !user || isLoading) {
