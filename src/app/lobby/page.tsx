@@ -11,7 +11,6 @@ import useUserSession from '@/hooks/use-user-session';
 import { useEffect } from 'react';
 import { database } from '@/lib/firebase';
 import { ref, set } from 'firebase/database';
-import type { Seat } from '@/components/room/Seats';
 
 export default function LobbyPage() {
   const [roomId, setRoomId] = useState('');
@@ -29,21 +28,23 @@ export default function LobbyPage() {
     if (!user) return;
     setIsCreatingRoom(true);
     const newRoomId = uuidv4();
-    
+    const roomRef = ref(database, `rooms/${newRoomId}`);
     try {
-      const roomRef = ref(database, `rooms/${newRoomId}`);
-      const hostRef = ref(database, `rooms/${newRoomId}/host`);
-      const seatsRef = ref(database, `rooms/${newRoomId}/seats`);
-      
-      const initialSeats: Seat[] = Array(4).fill(null).map((_, i) => ({ id: i, user: null }));
-
-      // Set initial room data
-      await set(hostRef, user.name);
-      await set(seatsRef, initialSeats);
-      
+      // We don't wait for the DB write to complete to navigate.
+      // This is optimistic update.
       router.push(`/rooms/${newRoomId}`);
+      
+      // Set initial room data in the background.
+      await set(roomRef, { 
+        host: user.name,
+        seats: Array(4).fill(null).map((_, i) => ({ id: i, user: null })),
+        createdAt: Date.now()
+      });
+
     } catch (error) {
       console.error("Failed to create room:", error);
+      // If creation fails, we might want to inform the user.
+      // For now, we'll just log it and the user will be on the room page.
       setIsCreatingRoom(false);
     }
   };

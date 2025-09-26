@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -20,11 +21,25 @@ interface SeatsProps {
 const Seats = ({ seats, onTakeSeat }: SeatsProps) => {
   const avatarImages = PlaceHolderImages.filter(p => p.id.startsWith('avatar'));
 
+  // Ensure seats is always an array of 4
+  const displaySeats = React.useMemo(() => {
+    const filledSeats = Array(4).fill(null).map((_, i) => ({ id: i, user: null }));
+    if (Array.isArray(seats)) {
+      seats.forEach(seat => {
+        if (seat && seat.id >= 0 && seat.id < 4) {
+          filledSeats[seat.id] = seat;
+        }
+      });
+    }
+    return filledSeats;
+  }, [seats]);
+
+
   return (
     <Card className="bg-card/50 backdrop-blur-lg border-accent/20">
       <CardContent className="p-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {seats.map((seat, index) => (
+          {displaySeats.map((seat, index) => (
             <div
               key={seat?.id ?? index}
               onClick={() => !seat?.user && onTakeSeat(seat.id)}
@@ -55,4 +70,4 @@ const Seats = ({ seats, onTakeSeat }: SeatsProps) => {
   );
 };
 
-export default Seats;
+export default React.memo(Seats);
