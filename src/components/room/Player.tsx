@@ -44,6 +44,14 @@ function getYouTubeVideoId(url: string) {
 
 const Player = ({ videoUrl, onSetVideo, isHost, onSearchClick }: PlayerProps) => {
   const videoId = useMemo(() => getYouTubeVideoId(videoUrl), [videoUrl]);
+  const [localVideoUrl, setLocalVideoUrl] = useState('');
+
+  const handleUrlSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (localVideoUrl.trim()) {
+      onSetVideo(localVideoUrl.trim());
+    }
+  };
 
   return (
     <>
@@ -61,15 +69,33 @@ const Player = ({ videoUrl, onSetVideo, isHost, onSearchClick }: PlayerProps) =>
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-4 text-center">
             {isHost ? (
-              <>
-                <Film className="h-16 w-16 mb-4" />
+              <div className='w-full max-w-lg'>
+                <Film className="h-16 w-16 mb-4 mx-auto" />
                 <h3 className="text-xl font-bold text-foreground">شاشة السينما</h3>
-                <p>ابحث عن فيديو في يوتيوب لبدء العرض</p>
-                 <Button onClick={onSearchClick} className="mt-4">
+                <p className='mb-4'>ابحث عن فيديو في يوتيوب أو الصق رابطًا لبدء العرض.</p>
+                <form onSubmit={handleUrlSubmit} className="flex gap-2 mb-4">
+                  <Input 
+                    type="text"
+                    placeholder="الصق رابط فيديو هنا..."
+                    value={localVideoUrl}
+                    onChange={(e) => setLocalVideoUrl(e.target.value)}
+                    className="bg-input border-border focus:ring-accent"
+                  />
+                  <Button type="submit">
+                    <Play className="me-2 h-4 w-4" />
+                    تشغيل
+                  </Button>
+                </form>
+                <div className="relative flex py-2 items-center">
+                    <div className="flex-grow border-t border-border"></div>
+                    <span className="flex-shrink mx-4 text-muted-foreground text-xs">أو</span>
+                    <div className="flex-grow border-t border-border"></div>
+                </div>
+                 <Button onClick={onSearchClick} className="w-full" variant="secondary">
                     <Search className="me-2 h-4 w-4" />
                     بحث في يوتيوب
                 </Button>
-              </>
+              </div>
             ) : (
               <>
                 <Film className="h-16 w-16 mb-4" />
