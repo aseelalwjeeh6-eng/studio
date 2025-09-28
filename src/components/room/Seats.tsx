@@ -1,15 +1,17 @@
 'use client';
 
-import { Armchair, Mic, MicOff, User, LogOut } from 'lucide-react';
+import { Armchair, Mic, MicOff, User, LogOut, ShieldX, MoreVertical } from 'lucide-react';
 import { SeatedMember } from './RoomClient';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useLocalParticipant, useParticipant, useParticipants, useTracks } from '@livekit/components-react';
-import { LocalParticipant, Participant, Track } from 'livekit-client';
+import { useLocalParticipant, useParticipant, useParticipants } from '@livekit/components-react';
+import { Participant } from 'livekit-client';
 import { cn } from '@/lib/utils';
 import { User as UserSession } from '@/app/providers';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { useState } from 'react';
 
 const Seat = ({ 
     seatId,
@@ -18,6 +20,8 @@ const Seat = ({
     onTakeSeat,
     onLeaveSeat,
     currentUser,
+    isHost,
+    onKickUser,
 }: { 
     seatId: number;
     seatedMember?: SeatedMember;
@@ -25,10 +29,15 @@ const Seat = ({
     onTakeSeat: (seatId: number) => void;
     onLeaveSeat: () => void;
     currentUser: UserSession;
+    isHost: boolean;
+    onKickUser: (userName: string) => void;
 }) => {
     const isOccupied = !!seatedMember;
     const isCurrentUserSeatedHere = isOccupied && seatedMember.name === currentUser.name;
     const { localParticipant } = useLocalParticipant();
+
+    // Local mute state for host controls, as remote mute is a premium feature.
+    const [isLocallyMuted, setIsLocallyMuted] = useState(false);
 
     const isMuted = participant ? participant.isMicrophoneMuted : true;
     const isSpeaking = participant ? participant.isSpeaking : false;
@@ -41,11 +50,39 @@ const Seat = ({
             localParticipant.setMicrophoneEnabled(!isMuted);
         }
     };
+    
+    const handleMuteToggleForUser = () => {
+        if (!isHost || !seatedMember || isCurrentUserSeatedHere) return;
+        // This is a UI-only mute for now, as remote muting requires more complex permissions.
+        // A full implementation would require a server-side call to LiveKit.
+        setIsLocallyMuted(!isLocallyMuted);
+    }
+
+    const hostControls = isHost && isOccupied && !isCurrentUserSeatedHere && (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="absolute -top-2 -left-2 w-7 h-7 rounded-full bg-secondary/80 hover:bg-secondary">
+                    <MoreVertical className="w-4 h-4" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+                <DropdownMenuItem onClick={handleMuteToggleForUser}>
+                    {isLocallyMuted ? <Mic className="me-2" /> : <MicOff className="me-2" />}
+                    {isLocallyMuted ? "إلغاء كتم الصوت" : "كتم الصوت"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onKickUser(seatedMember.name)} className="text-destructive">
+                    <ShieldX className="me-2" />
+                    طرد من الغرفة
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
 
     const seatContent = () => {
         if (isOccupied) {
             return (
                 <div className="relative">
+                    {hostControls}
                     <Avatar className={cn(
                         "w-20 h-20 border-2",
                         isSpeaking ? "border-accent animate-pulse" : "border-primary",
@@ -73,7 +110,7 @@ const Seat = ({
         )
     };
 
-    const name = isOccupied ? (isCurrentUserSeatedHere ? "أنت" : seatedMember.name) : "فارغ";
+    const name = isOccupied ? (isCurrentUserSeatedHere ? "أنت" : seatedMember.name) : "شاغر";
 
     return (
         <TooltipProvider>
@@ -81,7 +118,7 @@ const Seat = ({
                 <TooltipTrigger asChild>
                     <div className="flex flex-col items-center gap-2">
                         {seatContent()}
-                         <p className="text-sm font-semibold text-foreground truncate w-24 text-center">{seatedMember?.name || "شاغر"}</p>
+                         <p className="text-sm font-semibold text-foreground truncate w-24 text-center">{name}</p>
                          {isCurrentUserSeatedHere && (
                             <Button onClick={onLeaveSeat} variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs">
                                 <LogOut className="me-1 w-3 h-3" />
@@ -91,10 +128,10 @@ const Seat = ({
                     </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                    <p>{name}</p>
+                    <p>{seatedMember?.name || "شاغر"}</p>
                      {isOccupied && participant && (
                         <p className="text-xs text-muted-foreground">
-                            { isSpeaking ? 'يتحدث...' : (isMuted ? 'الصوت مكتوم' : 'الميكروفون مفتوح') }
+                            { isSpeaking ? 'يتحدث...' : ((isMuted || isLocallyMuted) ? 'الصوت مكتوم' : 'الميكروفون مفتوح') }
                         </p>
                     )}
                 </TooltipContent>
@@ -104,11 +141,20 @@ const Seat = ({
 };
 
 
-const Seats = ({ seatedMembers, onTakeSeat, onLeaveSeat, currentUser }: { 
+const Seats = ({ 
+    seatedMembers, 
+    onTakeSeat, 
+    onLeaveSeat, 
+    currentUser,
+    isHost,
+    onKickUser
+}: { 
     seatedMembers: SeatedMember[],
     onTakeSeat: (seatId: number) => void;
     onLeaveSeat: () => void;
     currentUser: UserSession;
+    isHost: boolean;
+    onKickUser: (userName: string) => void;
 }) => {
     const participants = useParticipants();
     const totalSeats = 8;
@@ -139,6 +185,8 @@ const Seats = ({ seatedMembers, onTakeSeat, onLeaveSeat, currentUser }: {
                         onTakeSeat={onTakeSeat}
                         onLeaveSeat={onLeaveSeat}
                         currentUser={currentUser}
+                        isHost={isHost}
+                        onKickUser={onKickUser}
                     />
                 ))}
             </div>
@@ -147,3 +195,5 @@ const Seats = ({ seatedMembers, onTakeSeat, onLeaveSeat, currentUser }: {
 };
 
 export default Seats;
+
+    

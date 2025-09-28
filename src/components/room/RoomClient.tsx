@@ -288,6 +288,23 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     }
   };
 
+  const handleKickUser = (userNameToKick: string) => {
+    if (!isHost || !userNameToKick) return;
+
+    // Remove from members
+    const memberRef = ref(database, `rooms/${roomId}/members/${userNameToKick}`);
+    set(memberRef, null);
+
+    // Remove from seated members if they are seated
+    const userSeat = seatedMembers.find(m => m.name === userNameToKick);
+    if (userSeat) {
+        const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
+        set(seatRef, null);
+    }
+    toast({ title: `تم طرد ${userNameToKick}` });
+  };
+
+
   if (!isLoaded || !user || isLoading || !token) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -317,6 +334,8 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
                     onTakeSeat={handleTakeSeat}
                     onLeaveSeat={handleLeaveSeat}
                     currentUser={user}
+                    isHost={isHost}
+                    onKickUser={handleKickUser}
                 />
                 <ViewerInfo members={viewers} />
                 <div className="flex-grow min-h-0">
@@ -414,3 +433,5 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
 };
 
 export default RoomClient;
+
+    
