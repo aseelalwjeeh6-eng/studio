@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { User } from '@/app/providers';
-import { Send } from 'lucide-react';
+import { Bot, Send } from 'lucide-react';
 import { filterProfanity } from '@/ai/flows/profanity-filter';
 
 interface ChatProps {
@@ -70,9 +70,13 @@ const Chat = ({ roomId, user }: ChatProps) => {
   };
 
   return (
-    <Card className="h-full flex flex-col bg-card/50 backdrop-blur-lg border-accent/20">
-      <CardHeader>
-        <CardTitle>الدردشة الحية</CardTitle>
+    <Card className="h-full flex flex-col bg-card border-none rounded-t-2xl">
+      <CardHeader className="flex flex-row items-center justify-between p-4">
+        <CardTitle className="text-lg">الدردشة</CardTitle>
+        <Button variant="ghost" size="sm">
+            <Bot className="me-2" />
+            لخص لي
+        </Button>
       </CardHeader>
       <CardContent className="flex-grow overflow-hidden p-0">
         <ScrollArea className="h-full" ref={scrollAreaRef}>
@@ -86,14 +90,14 @@ const Chat = ({ roomId, user }: ChatProps) => {
           </div>
         </ScrollArea>
       </CardContent>
-      <CardFooter className="p-4 border-t border-accent/20">
+      <CardFooter className="p-4 border-t">
         <form onSubmit={handleSendMessage} className="flex w-full items-center gap-2">
           <Input
             type="text"
             placeholder="اكتب رسالتك..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            className="bg-input/70 border-accent/30"
+            className="bg-input border-border focus:ring-accent"
             disabled={isSending}
           />
           <Button type="submit" size="icon" disabled={isSending}>
