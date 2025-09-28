@@ -1,24 +1,30 @@
-"use client";
+'use client';
+
 import {
   LiveKitRoom as LiveKitRoomComponent,
-  VideoConference,
+  useLocalParticipant,
 } from '@livekit/components-react';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import type { User } from '@/app/providers';
+import type { SeatedMember } from './RoomClient';
 
 interface LiveKitRoomProps {
   token: string;
   serverUrl: string;
+  user: User;
+  seatedMembers: SeatedMember[];
   children: React.ReactNode;
 }
 
-const LiveKitRoom = ({ token, serverUrl, children }: LiveKitRoomProps) => {
+const LiveKitRoom = ({ token, serverUrl, user, seatedMembers, children }: LiveKitRoomProps) => {
   const [connect, setConnect] = useState(false);
+  
   useEffect(() => {
-    // This is a workaround to defer connection to LiveKit until the client is hydrated
-    // and to prevent connection errors with React 18's strict mode.
     setConnect(true);
   }, []);
+  
+  const isSeated = seatedMembers.some(m => m.name === user.name);
 
   if (!token || !serverUrl) {
     return (
@@ -29,15 +35,24 @@ const LiveKitRoom = ({ token, serverUrl, children }: LiveKitRoomProps) => {
     );
   }
 
-
   return (
     <LiveKitRoomComponent
       video={false}
-      audio={true}
+      audio={isSeated} // Only connect audio if the user is seated
       token={token}
       serverUrl={serverUrl}
       connect={connect}
+      connectOptions={{ autoSubscribe: true }}
       data-lk-theme="default"
+      onConnected={() => {
+        // Mute mic on initial connection if seated
+        if (isSeated) {
+            const { localParticipant } = useLocalParticipant();
+            if(localParticipant) {
+                localParticipant.setMicrophoneEnabled(false);
+            }
+        }
+      }}
     >
         {children}
     </LiveKitRoomComponent>

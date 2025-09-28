@@ -3,15 +3,16 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { database } from '@/lib/firebase';
-import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline } from 'firebase/database';
+import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction } from 'firebase/database';
 import useUserSession from '@/hooks/use-user-session';
 import Player from './Player';
 import Chat from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
-import { ArrowLeft, Loader2, Share2, Youtube, MoreVertical, Search, History, X } from 'lucide-react';
+import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { AudioConference, LiveKitRoom } from '@livekit/components-react';
+import { AudioConference, useParticipant, useSpeakingParticipants } from '@livekit/components-react';
+import LiveKitRoom from './LiveKitRoom';
 import Seats from './Seats';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
@@ -19,13 +20,17 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '../ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 
 export type Member = { 
   name: string;
   joinedAt: object;
-  isMuted?: boolean;
-  isSpeaking?: boolean;
 };
+
+export type SeatedMember = {
+    name: string;
+    seatId: number;
+}
 
 interface YouTubeVideo {
   id: { videoId: string };
@@ -37,15 +42,28 @@ interface YouTubeVideo {
   };
 }
 
-const RoomHeader = ({ onSearchClick, roomId }: { onSearchClick: () => void; roomId: string; }) => {
+const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo }: { onSearchClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; }) => {
     const { user } = useUserSession();
     const avatar = PlaceHolderImages.find(p => p.id.startsWith('avatar')); // Simple selection for now
 
     return (
         <header className="flex items-center justify-between p-4 w-full">
-            <Button variant="ghost" size="icon">
-                <MoreVertical />
-            </Button>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                        <MoreVertical />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-card/80 backdrop-blur-lg">
+                    <DropdownMenuItem onClick={onSwitchToVideo}>
+                        <Video className="me-2" /> مكالمة فيديو
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={onLeaveRoom} className="text-destructive">
+                        <LogOut className="me-2" /> مغادرة الغرفة
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
             <Button onClick={onSearchClick} variant="secondary">
                 <Youtube className="me-2" />
                 بحث يوتيوب
@@ -67,7 +85,8 @@ const RoomHeader = ({ onSearchClick, roomId }: { onSearchClick: () => void; room
 const RoomClient = ({ roomId }: { roomId: string }) => {
   const router = useRouter();
   const { user, isLoaded } = useUserSession();
-  const [members, setMembers] = useState<Member[]>([]);
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
+  const [seatedMembers, setSeatedMembers] = useState<SeatedMember[]>([]);
   const [videoUrl, setVideoUrl] = useState('');
   const [isHost, setIsHost] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +101,11 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   const { toast } = useToast();
   const userName = useMemo(() => user?.name, [user]);
 
+  const viewers = useMemo(() => {
+    const seatedNames = new Set(seatedMembers.map(m => m.name));
+    return allMembers.filter(m => !seatedNames.has(m.name));
+  }, [allMembers, seatedMembers]);
+
   const setupPresence = useCallback((name: string) => {
     goOnline(database);
     const userRef = ref(database, `rooms/${roomId}/members/${name}`);
@@ -90,6 +114,10 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     set(userRef, { name, joinedAt: serverTimestamp() });
     return onDisconnectUserRef;
   }, [roomId]);
+  
+  const handleLeaveRoom = () => {
+    router.push('/lobby');
+  };
 
   useEffect(() => {
     if (!roomId || !userName) return;
@@ -119,6 +147,7 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     
     const roomRef = ref(database, `rooms/${roomId}`);
     const membersRef = ref(database, `rooms/${roomId}/members`);
+    const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
     const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
     
     get(roomRef).then((snapshot) => {
@@ -127,8 +156,15 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
         router.push('/lobby');
         return;
       }
-      const hostName = snapshot.val().host;
+      const roomData = snapshot.val();
+      const hostName = roomData.host;
       setIsHost(hostName === userName);
+
+      // Initialize seatedMembers if it doesn't exist
+      if (!roomData.seatedMembers) {
+        set(seatedMembersRef, {});
+      }
+
       disconnectPresence = setupPresence(userName);
       setIsLoading(false);
     }).catch(error => {
@@ -137,15 +173,29 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
       router.push('/lobby');
     });
 
-    const onMembersValue = onValue(membersRef, (snapshot) => setMembers(data => data ? Object.values(data) : []));
+    const onMembersValue = onValue(membersRef, (snapshot) => setAllMembers(data => snapshot.exists() ? Object.values(snapshot.val()) : []));
+    const onSeatedMembersValue = onValue(seatedMembersRef, (snapshot) => {
+        const seatedData = snapshot.val();
+        const seatedArray = seatedData ? Object.entries(seatedData).map(([seatId, name]) => ({ seatId: parseInt(seatId), name: name as string })) : [];
+        setSeatedMembers(seatedArray);
+    });
     const onVideoUrlValue = onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || ''));
 
     return () => {
       onValue(membersRef, () => {});
       onValue(videoUrlRef, () => {});
+      onValue(seatedMembersRef, () => {});
+
       if (disconnectPresence) disconnectPresence.cancel();
-      const userRef = ref(database, `rooms/${roomId}/members/${userName}`);
-      get(userRef).then(snapshot => { if (snapshot.exists()) set(userRef, null); });
+      
+      const userSeat = seatedMembers.find(m => m.name === userName);
+      if (userSeat) {
+          const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
+          set(seatRef, null);
+      }
+      
+      const memberRef = ref(database, `rooms/${roomId}/members/${userName}`);
+      get(memberRef).then(snapshot => { if (snapshot.exists()) set(memberRef, null); });
       goOffline(database);
     };
   }, [isLoaded, userName, roomId, router, toast, setupPresence]);
@@ -158,6 +208,36 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
             }
         }
     }, []);
+    
+    const handleTakeSeat = (seatId: number) => {
+        if (!userName) return;
+        const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${seatId}`);
+        const currentUserSeat = seatedMembers.find(m => m.name === userName);
+
+        runTransaction(seatRef, (currentData) => {
+            if (currentData === null) {
+                // If user is already seated, remove them from old seat first
+                if (currentUserSeat) {
+                   const oldSeatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
+                   set(oldSeatRef, null);
+                }
+                return userName;
+            }
+            return; // Abort transaction if seat is taken
+        }).catch((error) => {
+            console.error("Transaction failed: ", error);
+            toast({ title: "المقعد محجوز بالفعل", variant: "destructive" });
+        });
+    };
+
+    const handleLeaveSeat = () => {
+        if (!userName) return;
+        const currentUserSeat = seatedMembers.find(m => m.name === userName);
+        if (currentUserSeat) {
+            const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
+            set(seatRef, null);
+        }
+    };
 
     const updateSearchHistory = (query: string) => {
         if(typeof window === 'undefined') return;
@@ -220,17 +300,25 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     <LiveKitRoom
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-      audio={true}
-      video={false}
-      connect={true}
-      data-lk-theme="default"
+      user={user}
+      seatedMembers={seatedMembers}
     >
         <div className="flex flex-col h-screen w-full bg-background items-center">
-            <RoomHeader onSearchClick={() => setIsSearchOpen(true)} roomId={roomId} />
+            <RoomHeader 
+                onSearchClick={() => setIsSearchOpen(true)} 
+                roomId={roomId}
+                onLeaveRoom={handleLeaveRoom}
+                onSwitchToVideo={() => toast({ title: "ميزة الفيديو سيتم إضافتها قريباً!"})}
+            />
             <main className="w-full max-w-4xl mx-auto flex-grow flex flex-col gap-4 px-4">
                 <Player videoUrl={videoUrl} onSetVideo={onSetVideo} isHost={isHost} onSearchClick={() => setIsSearchOpen(true)} />
-                <Seats members={members} />
-                <ViewerInfo members={members} />
+                <Seats 
+                    seatedMembers={seatedMembers}
+                    onTakeSeat={handleTakeSeat}
+                    onLeaveSeat={handleLeaveSeat}
+                    currentUser={user}
+                />
+                <ViewerInfo members={viewers} />
                 <div className="flex-grow min-h-0">
                     <Chat roomId={roomId} user={user} />
                 </div>
