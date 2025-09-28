@@ -57,15 +57,18 @@ const Player = ({ videoUrl, onSetVideo, isHost, onSearchClick }: PlayerProps) =>
     <>
       <div className="aspect-video w-full rounded-lg overflow-hidden shadow-md bg-black relative">
         {videoId ? (
-          <iframe
-            width="100%"
-            height="100%"
-            src={`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=1&rel=0`}
-            title="YouTube video player"
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          ></iframe>
+          <div className="w-full h-full relative">
+            <iframe
+              width="100%"
+              height="100%"
+              src={`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&showinfo=0&modestbranding=1`}
+              title="YouTube video player"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            ></iframe>
+            <div className="absolute top-0 left-0 w-full h-full bg-transparent"></div>
+          </div>
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-4 text-center">
             {isHost ? (
