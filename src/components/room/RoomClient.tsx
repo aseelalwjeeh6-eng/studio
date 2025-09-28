@@ -11,7 +11,7 @@ import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
 import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { AudioConference, useParticipant, useSpeakingParticipants } from '@livekit/components-react';
+import { AudioConference } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
 import Seats from './Seats';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
@@ -160,11 +160,6 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
       const hostName = roomData.host;
       setIsHost(hostName === userName);
 
-      // Initialize seatedMembers if it doesn't exist
-      if (!roomData.seatedMembers) {
-        set(seatedMembersRef, {});
-      }
-
       disconnectPresence = setupPresence(userName);
       setIsLoading(false);
     }).catch(error => {
@@ -188,17 +183,19 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
 
       if (disconnectPresence) disconnectPresence.cancel();
       
+      const memberRef = ref(database, `rooms/${roomId}/members/${userName}`);
+      get(memberRef).then(snapshot => { if (snapshot.exists()) set(memberRef, null); });
+      
+      // Also remove user from seat on disconnect
       const userSeat = seatedMembers.find(m => m.name === userName);
       if (userSeat) {
           const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
           set(seatRef, null);
       }
-      
-      const memberRef = ref(database, `rooms/${roomId}/members/${userName}`);
-      get(memberRef).then(snapshot => { if (snapshot.exists()) set(memberRef, null); });
+
       goOffline(database);
     };
-  }, [isLoaded, userName, roomId, router, toast, setupPresence]);
+  }, [isLoaded, userName, roomId, router, toast, setupPresence, seatedMembers]);
 
     useEffect(() => {
         if(typeof window !== 'undefined') {
@@ -316,7 +313,7 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   return (
     <LiveKitRoom
       token={token}
-      serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+      serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL!}
       user={user}
       seatedMembers={seatedMembers}
     >
@@ -433,5 +430,3 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
 };
 
 export default RoomClient;
-
-    

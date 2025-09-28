@@ -19,13 +19,12 @@ interface LiveKitRoomProps {
 
 const LiveKitRoom = ({ token, serverUrl, user, seatedMembers, children }: LiveKitRoomProps) => {
   const [connect, setConnect] = useState(false);
-  
+  const isSeated = seatedMembers.some(m => m.name === user.name);
+
   useEffect(() => {
     setConnect(true);
   }, []);
   
-  const isSeated = seatedMembers.some(m => m.name === user.name);
-
   if (!token || !serverUrl) {
     return (
         <div className="flex h-screen items-center justify-center">
@@ -44,15 +43,6 @@ const LiveKitRoom = ({ token, serverUrl, user, seatedMembers, children }: LiveKi
       connect={connect}
       connectOptions={{ autoSubscribe: true }}
       data-lk-theme="default"
-      onConnected={() => {
-        // Mute mic on initial connection if seated
-        if (isSeated) {
-            const { localParticipant } = useLocalParticipant();
-            if(localParticipant) {
-                localParticipant.setMicrophoneEnabled(false);
-            }
-        }
-      }}
     >
         {children}
     </LiveKitRoomComponent>

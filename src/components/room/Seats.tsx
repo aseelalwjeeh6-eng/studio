@@ -4,7 +4,7 @@ import { Armchair, Mic, MicOff, User, LogOut, ShieldX, MoreVertical } from 'luci
 import { SeatedMember } from './RoomClient';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useLocalParticipant, useParticipant, useParticipants } from '@livekit/components-react';
+import { useLocalParticipant, useParticipant, useParticipants, useSpeakingParticipants } from '@livekit/components-react';
 import { Participant } from 'livekit-client';
 import { cn } from '@/lib/utils';
 import { User as UserSession } from '@/app/providers';
@@ -35,27 +35,27 @@ const Seat = ({
     const isOccupied = !!seatedMember;
     const isCurrentUserSeatedHere = isOccupied && seatedMember.name === currentUser.name;
     const { localParticipant } = useLocalParticipant();
-
-    // Local mute state for host controls, as remote mute is a premium feature.
-    const [isLocallyMuted, setIsLocallyMuted] = useState(false);
+    
+    // UI-only mute state for host controls
+    const [isLocallyMutedByHost, setIsLocallyMutedByHost] = useState(false);
 
     const isMuted = participant ? participant.isMicrophoneMuted : true;
     const isSpeaking = participant ? participant.isSpeaking : false;
     
     const avatar = PlaceHolderImages.find(p => p.id.startsWith('avatar'));
 
-    const toggleMute = () => {
+    const toggleOwnMute = () => {
         if (isCurrentUserSeatedHere && localParticipant) {
-            const isMuted = localParticipant.isMicrophoneMuted;
-            localParticipant.setMicrophoneEnabled(!isMuted);
+            const isEnabled = localParticipant.isMicrophoneEnabled;
+            localParticipant.setMicrophoneEnabled(!isEnabled);
         }
     };
     
-    const handleMuteToggleForUser = () => {
+    const handleHostMuteToggle = () => {
         if (!isHost || !seatedMember || isCurrentUserSeatedHere) return;
         // This is a UI-only mute for now, as remote muting requires more complex permissions.
-        // A full implementation would require a server-side call to LiveKit.
-        setIsLocallyMuted(!isLocallyMuted);
+        // It provides a visual cue to the user they have been muted by the host.
+        setIsLocallyMutedByHost(!isLocallyMutedByHost);
     }
 
     const hostControls = isHost && isOccupied && !isCurrentUserSeatedHere && (
@@ -66,9 +66,9 @@ const Seat = ({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-                <DropdownMenuItem onClick={handleMuteToggleForUser}>
-                    {isLocallyMuted ? <Mic className="me-2" /> : <MicOff className="me-2" />}
-                    {isLocallyMuted ? "إلغاء كتم الصوت" : "كتم الصوت"}
+                <DropdownMenuItem onClick={handleHostMuteToggle}>
+                    {isLocallyMutedByHost ? <Mic className="me-2" /> : <MicOff className="me-2" />}
+                    {isLocallyMutedByHost ? "إلغاء كتم الصوت" : "كتم الصوت"}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onKickUser(seatedMember.name)} className="text-destructive">
                     <ShieldX className="me-2" />
@@ -76,6 +76,14 @@ const Seat = ({
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
+    );
+
+    const userControls = isCurrentUserSeatedHere && localParticipant && (
+         <div className="absolute -bottom-2 -right-2">
+             <Button size="icon" onClick={toggleOwnMute} className="w-8 h-8 rounded-full bg-secondary hover:bg-secondary/80">
+                {localParticipant.isMicrophoneMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-accent" />}
+            </Button>
+        </div>
     );
 
     const seatContent = () => {
@@ -93,13 +101,7 @@ const Seat = ({
                             <User className="w-10 h-10" />
                         </AvatarFallback>
                     </Avatar>
-                     {participant && (
-                        <div className="absolute -bottom-2 -right-2">
-                             <Button size="icon" onClick={toggleMute} className="w-8 h-8 rounded-full bg-secondary hover:bg-secondary/80">
-                                {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-accent" />}
-                            </Button>
-                        </div>
-                    )}
+                    {userControls}
                 </div>
             )
         }
@@ -111,6 +113,7 @@ const Seat = ({
     };
 
     const name = isOccupied ? (isCurrentUserSeatedHere ? "أنت" : seatedMember.name) : "شاغر";
+    const finalIsMuted = isMuted || (isOccupied && !isCurrentUserSeatedHere && isLocallyMutedByHost);
 
     return (
         <TooltipProvider>
@@ -131,7 +134,7 @@ const Seat = ({
                     <p>{seatedMember?.name || "شاغر"}</p>
                      {isOccupied && participant && (
                         <p className="text-xs text-muted-foreground">
-                            { isSpeaking ? 'يتحدث...' : ((isMuted || isLocallyMuted) ? 'الصوت مكتوم' : 'الميكروفون مفتوح') }
+                            { isSpeaking ? 'يتحدث...' : (finalIsMuted ? 'الصوت مكتوم' : 'الميكروفون مفتوح') }
                         </p>
                     )}
                 </TooltipContent>
@@ -195,5 +198,3 @@ const Seats = ({
 };
 
 export default Seats;
-
-    
