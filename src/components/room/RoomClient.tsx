@@ -84,7 +84,7 @@ const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo }: { o
 
 const RoomClient = ({ roomId }: { roomId: string }) => {
   const router = useRouter();
-  const { user, isLoaded } = useUserSession();
+  const { user, isLoaded: isUserLoaded } = useUserSession();
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [seatedMembers, setSeatedMembers] = useState<SeatedMember[]>([]);
   const [videoUrl, setVideoUrl] = useState('');
@@ -99,76 +99,70 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   
   const { toast } = useToast();
-  const userName = useMemo(() => user?.name, [user]);
 
   const viewers = useMemo(() => {
     const seatedNames = new Set(seatedMembers.map(m => m.name));
     return allMembers.filter(m => !seatedNames.has(m.name));
   }, [allMembers, seatedMembers]);
 
-  const setupPresence = useCallback((name: string) => {
-    goOnline(database);
-    const userRef = ref(database, `rooms/${roomId}/members/${name}`);
-    const onDisconnectUserRef = onDisconnect(userRef);
-    onDisconnectUserRef.remove();
-    set(userRef, { name, joinedAt: serverTimestamp() });
-    return onDisconnectUserRef;
-  }, [roomId]);
-  
+  const isSeated = useMemo(() => {
+    if (!user) return false;
+    return seatedMembers.some(m => m.name === user.name);
+  }, [seatedMembers, user]);
+
   const handleLeaveRoom = () => {
     router.push('/lobby');
   };
-
+  
+  // Effect for handling user session and basic loading state
   useEffect(() => {
-    if (!roomId || !userName) return;
-    (async () => {
-      try {
-        const resp = await fetch(`/api/livekit?room=${roomId}&username=${userName}`);
-        const data = await resp.json();
-        setToken(data.token);
-      } catch (e) {
-        console.error(e);
-      }
-    })();
-  }, [roomId, userName]);
-
-  useEffect(() => {
-    const isClient = typeof window !== 'undefined';
-    if (!isClient) return;
-
-    if (isLoaded && !userName) {
+    if (isUserLoaded && !user) {
       router.push('/');
-      return;
     }
-    if (!userName) return;
+    if (isUserLoaded && user) {
+        // We are ready to start fetching room data
+        setIsLoading(false);
+    }
+  }, [isUserLoaded, user, router]);
 
-    setIsLoading(true);
-    let disconnectPresence: ReturnType<typeof onDisconnect> | null = null;
-    
+
+  // Effect for fetching room data and setting up presence
+  useEffect(() => {
+    if (!user || isLoading) return;
+
     const roomRef = ref(database, `rooms/${roomId}`);
+    
+    // 1. Check if room exists
+    get(roomRef).then((snapshot) => {
+      if (!snapshot.exists()) {
+        toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
+        router.push('/lobby');
+        return;
+      }
+      
+      const roomData = snapshot.val();
+      const hostName = roomData.host;
+      setIsHost(hostName === user.name);
+
+      // 2. Setup presence after confirming room exists
+      goOnline(database);
+      const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+      set(userRef, { name: user.name, joinedAt: serverTimestamp() });
+      onDisconnect(userRef).remove();
+
+      // 3. Fetch LiveKit token
+      fetch(`/api/livekit?room=${roomId}&username=${user.name}`)
+        .then(resp => resp.json())
+        .then(data => setToken(data.token))
+        .catch(e => console.error("Failed to fetch LiveKit token", e));
+    });
+
+    // 4. Subscribe to room data changes
     const membersRef = ref(database, `rooms/${roomId}/members`);
     const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
     const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
     
-    get(roomRef).then((snapshot) => {
-      if (!snapshot.exists()) {
-        toast({ title: 'الغرفة غير موجودة', variant: 'destructive' });
-        router.push('/lobby');
-        return;
-      }
-      const roomData = snapshot.val();
-      const hostName = roomData.host;
-      setIsHost(hostName === userName);
-
-      disconnectPresence = setupPresence(userName);
-      setIsLoading(false);
-    }).catch(error => {
-      console.error("Failed to fetch room", error);
-      toast({ title: 'حدث خطأ', variant: 'destructive' });
-      router.push('/lobby');
-    });
-
-    const onMembersValue = onValue(membersRef, (snapshot) => setAllMembers(data => snapshot.exists() ? Object.values(snapshot.val()) : []));
+    const onMembersValue = onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : []));
     const onSeatedMembersValue = onValue(seatedMembersRef, (snapshot) => {
         const seatedData = snapshot.val();
         const seatedArray = seatedData ? Object.entries(seatedData).map(([seatId, name]) => ({ seatId: parseInt(seatId), name: name as string })) : [];
@@ -177,106 +171,104 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     const onVideoUrlValue = onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || ''));
 
     return () => {
+      // Detach listeners
       onValue(membersRef, () => {});
-      onValue(videoUrlRef, () => {});
       onValue(seatedMembersRef, () => {});
-
-      if (disconnectPresence) disconnectPresence.cancel();
+      onValue(videoUrlRef, () => {});
       
-      const memberRef = ref(database, `rooms/${roomId}/members/${userName}`);
-      get(memberRef).then(snapshot => { if (snapshot.exists()) set(memberRef, null); });
-      
-      // Also remove user from seat on disconnect
-      const userSeat = seatedMembers.find(m => m.name === userName);
-      if (userSeat) {
-          const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
-          set(seatRef, null);
-      }
-
-      goOffline(database);
-    };
-  }, [isLoaded, userName, roomId, router, toast, setupPresence, seatedMembers]);
-
-    useEffect(() => {
-        if(typeof window !== 'undefined') {
-            const storedHistory = localStorage.getItem('youtubeSearchHistory');
-            if (storedHistory) {
-                setSearchHistory(JSON.parse(storedHistory));
-            }
-        }
-    }, []);
-    
-    const handleTakeSeat = (seatId: number) => {
-        if (!userName) return;
-        const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${seatId}`);
-        const currentUserSeat = seatedMembers.find(m => m.name === userName);
-
-        runTransaction(seatRef, (currentData) => {
-            if (currentData === null) {
-                // If user is already seated, remove them from old seat first
-                if (currentUserSeat) {
-                   const oldSeatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
-                   set(oldSeatRef, null);
-                }
-                return userName;
-            }
-            return; // Abort transaction if seat is taken
-        }).catch((error) => {
-            console.error("Transaction failed: ", error);
-            toast({ title: "المقعد محجوز بالفعل", variant: "destructive" });
-        });
-    };
-
-    const handleLeaveSeat = () => {
-        if (!userName) return;
-        const currentUserSeat = seatedMembers.find(m => m.name === userName);
-        if (currentUserSeat) {
-            const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
+      // Clean up presence on unmount
+      if (user) {
+        const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+        const userSeat = seatedMembers.find(m => m.name === user.name);
+        if (userSeat) {
+            const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
             set(seatRef, null);
         }
+        set(memberRef, null);
+      }
+      goOffline(database);
     };
+  }, [user, isLoading, roomId, router, toast]);
 
-    const updateSearchHistory = (query: string) => {
-        if(typeof window === 'undefined') return;
-        const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 10);
-        setSearchHistory(newHistory);
-        localStorage.setItem('youtubeSearchHistory', JSON.stringify(newHistory));
-    };
+  useEffect(() => {
+      if(typeof window !== 'undefined') {
+          const storedHistory = localStorage.getItem('youtubeSearchHistory');
+          if (storedHistory) {
+              setSearchHistory(JSON.parse(storedHistory));
+          }
+      }
+  }, []);
+    
+  const handleTakeSeat = (seatId: number) => {
+      if (!user) return;
+      const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${seatId}`);
+      const currentUserSeat = seatedMembers.find(m => m.name === user.name);
 
-    const handleSearchSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!searchQuery || !isHost) return;
-        
-        setIsSearching(true);
-        setSearchError(null);
-        setSearchResults([]);
-        try {
-        const results = await searchYoutube({ query: searchQuery });
-        setSearchResults(results.items);
-        updateSearchHistory(searchQuery);
-        } catch (error) {
-            console.error("YouTube search failed:", error);
-            if (error instanceof Error && error.message.includes('YOUTUBE_API_KEY is not set')) {
-                setSearchError("مفتاح واجهة برمجة تطبيقات YouTube غير مهيأ. يرجى إضافته إلى ملف .env للمتابعة.");
-            } else {
-                setSearchError("فشل البحث في يوتيوب. يرجى المحاولة مرة أخرى.");
-            }
-        } finally {
-            setIsSearching(false);
-        }
-    };
+      runTransaction(seatRef, (currentData) => {
+          if (currentData === null) {
+              if (currentUserSeat) {
+                 const oldSeatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
+                 set(oldSeatRef, null);
+              }
+              return user.name;
+          }
+          return; // Abort transaction if seat is taken
+      }).catch((error) => {
+          console.error("Transaction failed: ", error);
+          toast({ title: "المقعد محجوز بالفعل", variant: "destructive" });
+      });
+  };
+
+  const handleLeaveSeat = () => {
+      if (!user) return;
+      const currentUserSeat = seatedMembers.find(m => m.name === user.name);
+      if (currentUserSeat) {
+          const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
+          set(seatRef, null);
+      }
+  };
+
+  const updateSearchHistory = (query: string) => {
+      if(typeof window === 'undefined') return;
+      const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 10);
+      setSearchHistory(newHistory);
+      localStorage.setItem('youtubeSearchHistory', JSON.stringify(newHistory));
+  };
+
+  const handleSearchSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!searchQuery || !isHost) return;
+      
+      setIsSearching(true);
+      setSearchError(null);
+      setSearchResults([]);
+      try {
+      const results = await searchYoutube({ query: searchQuery });
+      setSearchResults(results.items);
+      updateSearchHistory(searchQuery);
+      } catch (error) {
+          console.error("YouTube search failed:", error);
+          if (error instanceof Error && error.message.includes('YOUTUBE_API_KEY is not set')) {
+              setSearchError("مفتاح واجهة برمجة تطبيقات YouTube غير مهيأ. يرجى إضافته إلى ملف .env للمتابعة.");
+          } else {
+              setSearchError("فشل البحث في يوتيوب. يرجى المحاولة مرة أخرى.");
+          }
+      } finally {
+          setIsSearching(false);
+      }
+  };
   
-    const handleSelectVideo = (videoId: string) => {
-        if (isHost) {
-        onSetVideo(`https://www.youtube.com/watch?v=${videoId}`);
-        setIsSearchOpen(false);
-        }
-    };
+  const handleSelectVideo = (videoId: string) => {
+      if (isHost) {
+      onSetVideo(`https://www.youtube.com/watch?v=${videoId}`);
+      setIsSearchOpen(false);
+      }
+  };
 
-    const handleHistoryClick = (query: string) => {
-        setSearchQuery(query);
-        handleSearchSubmit(new Event('submit') as unknown as React.FormEvent);
-    };
+  const handleHistoryClick = (query: string) => {
+      setSearchQuery(query);
+      handleSearchSubmit(new Event('submit') as unknown as React.FormEvent);
+  };
 
   const onSetVideo = (url: string) => {
     if (isHost && url) {
@@ -302,7 +294,7 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   };
 
 
-  if (!isLoaded || !user || isLoading || !token) {
+  if (isLoading || !user) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-accent" />
@@ -315,7 +307,7 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL!}
       user={user}
-      seatedMembers={seatedMembers}
+      isSeated={isSeated}
     >
         <div className="flex flex-col h-screen w-full bg-background items-center">
             <RoomHeader 

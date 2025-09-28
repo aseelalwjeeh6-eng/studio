@@ -2,28 +2,19 @@
 
 import {
   LiveKitRoom as LiveKitRoomComponent,
-  useLocalParticipant,
 } from '@livekit/components-react';
 import { Loader2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import type { User } from '@/app/providers';
-import type { SeatedMember } from './RoomClient';
 
 interface LiveKitRoomProps {
   token: string;
   serverUrl: string;
   user: User;
-  seatedMembers: SeatedMember[];
+  isSeated: boolean;
   children: React.ReactNode;
 }
 
-const LiveKitRoom = ({ token, serverUrl, user, seatedMembers, children }: LiveKitRoomProps) => {
-  const [connect, setConnect] = useState(false);
-  const isSeated = seatedMembers.some(m => m.name === user.name);
-
-  useEffect(() => {
-    setConnect(true);
-  }, []);
+const LiveKitRoom = ({ token, serverUrl, user, isSeated, children }: LiveKitRoomProps) => {
   
   if (!token || !serverUrl) {
     return (
@@ -40,7 +31,7 @@ const LiveKitRoom = ({ token, serverUrl, user, seatedMembers, children }: LiveKi
       audio={isSeated} // Only connect audio if the user is seated
       token={token}
       serverUrl={serverUrl}
-      connect={connect}
+      connect={true}
       connectOptions={{ autoSubscribe: true }}
       data-lk-theme="default"
     >

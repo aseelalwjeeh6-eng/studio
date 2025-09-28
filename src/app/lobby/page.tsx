@@ -24,23 +24,26 @@ export default function LobbyPage() {
     }
   }, [isLoaded, user, router]);
 
-  const handleCreateRoom = async () => {
-    if (!user) return;
+  const handleCreateRoom = () => {
+    if (!user || isCreatingRoom) return;
     setIsCreatingRoom(true);
     const newRoomId = uuidv4();
-    try {
-      const roomRef = ref(database, `rooms/${newRoomId}`);
-      await set(roomRef, {
-        host: user.name,
-        createdAt: Date.now(),
-        videoUrl: '',
-        seatedMembers: {},
-      });
-      router.push(`/rooms/${newRoomId}`);
-    } catch (error) {
-      console.error("Failed to create room:", error);
-      setIsCreatingRoom(false);
-    }
+    
+    // Optimistic update: navigate immediately
+    router.push(`/rooms/${newRoomId}`);
+
+    // Create room in the background
+    const roomRef = ref(database, `rooms/${newRoomId}`);
+    set(roomRef, {
+      host: user.name,
+      createdAt: Date.now(),
+      videoUrl: '',
+      seatedMembers: {},
+    }).catch(error => {
+      console.error("Failed to create room in background:", error);
+      // If creation fails, the user is already in the room page,
+      // which will handle the "room not found" case.
+    });
   };
 
   const handleJoinRoom = (e: React.FormEvent) => {
