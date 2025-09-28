@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Bell, Moon, Sun, Heart, LogOut } from 'lucide-react';
+import { Bell, Moon, Sun, Heart, Power } from 'lucide-react';
 import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import useUserSession from '@/hooks/use-user-session';
@@ -114,7 +114,7 @@ export function MainHeader() {
             className="rounded-full"
             aria-label="تسجيل الخروج"
           >
-            <LogOut className="h-5 w-5" />
+            <Power className="h-5 w-5" />
           </Button>
         </div>
       </div>
