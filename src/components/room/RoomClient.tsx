@@ -12,10 +12,17 @@ import { Button } from '../ui/button';
 import { ArrowLeft, Loader2, Share2 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import LiveKitRoom from './LiveKitRoom';
-import { Card } from '../ui/card';
+import { AudioConference, LiveKitRoom, useTracks } from '@livekit/components-react';
+import { Track } from 'livekit-client';
+import Seats from './Seats';
 
-type Member = { name: string; joinedAt: object };
+export type Member = { 
+  name: string;
+  joinedAt: object;
+  // We will add audio state here later
+  isMuted?: boolean;
+  isSpeaking?: boolean;
+};
 
 const RoomClient = ({ roomId }: { roomId: string }) => {
   const router = useRouter();
@@ -155,38 +162,46 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   }
 
   return (
-    <div className="h-screen w-full flex flex-col bg-background overflow-hidden p-2 sm:p-4 gap-4">
-       <div className="flex items-center justify-between">
-         <div className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm" className="bg-card/50 backdrop-blur-sm">
-                <Link href="/lobby">
-                    <ArrowLeft className="h-4 w-4 me-2" />
-                    العودة إلى الردهة
-                </Link>
-            </Button>
-            <Button variant="outline" size="sm" className="bg-card/50 backdrop-blur-sm" onClick={handleShareRoom}>
-                <Share2 className="h-4 w-4 me-2" />
-                مشاركة الغرفة
-            </Button>
-         </div>
-         <ViewerInfo members={members} />
-       </div>
-      
-      <div className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
-        <div className="lg:col-span-2 flex flex-col gap-4">
-            <Player videoUrl={videoUrl} onSetVideo={handleSetVideo} isHost={isHost} />
-            <Card className="bg-card/50 backdrop-blur-lg border-accent/20 p-4 flex-grow min-h-0">
-              <LiveKitRoom
-                token={token}
-                serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL!}
-              />
-            </Card>
+    <LiveKitRoom
+      token={token}
+      serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+      audio={true}
+      video={false} // We don't need video, just audio
+      connect={true}
+      data-lk-theme="default"
+    >
+      <div className="h-screen w-full flex flex-col bg-background overflow-hidden p-2 sm:p-4 gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+              <Button asChild variant="outline" size="sm" className="bg-card/50 backdrop-blur-sm">
+                  <Link href="/lobby">
+                      <ArrowLeft className="h-4 w-4 me-2" />
+                      العودة إلى الردهة
+                  </Link>
+              </Button>
+              <Button variant="outline" size="sm" className="bg-card/50 backdrop-blur-sm" onClick={handleShareRoom}>
+                  <Share2 className="h-4 w-4 me-2" />
+                  مشاركة الغرفة
+              </Button>
+          </div>
+          <ViewerInfo members={members} />
         </div>
-        <div className="lg:col-span-1 flex flex-col min-h-0 h-full">
-          <Chat roomId={roomId} user={user} />
+        
+        <div className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
+          <div className="lg:col-span-2 flex flex-col gap-4">
+              <Player videoUrl={videoUrl} onSetVideo={handleSetVideo} isHost={isHost} />
+              <Seats members={members} />
+              {/* This component is hidden, it just handles the audio */}
+              <div className="hidden">
+                  <AudioConference />
+              </div>
+          </div>
+          <div className="lg:col-span-1 flex flex-col min-h-0 h-full">
+            <Chat roomId={roomId} user={user} />
+          </div>
         </div>
       </div>
-    </div>
+    </LiveKitRoom>
   );
 };
 

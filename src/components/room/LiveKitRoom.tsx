@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import {
   LiveKitRoom as LiveKitRoomComponent,
   VideoConference,
@@ -9,9 +9,10 @@ import { useEffect, useState } from 'react';
 interface LiveKitRoomProps {
   token: string;
   serverUrl: string;
+  children: React.ReactNode;
 }
 
-const LiveKitRoom = ({ token, serverUrl }: LiveKitRoomProps) => {
+const LiveKitRoom = ({ token, serverUrl, children }: LiveKitRoomProps) => {
   const [connect, setConnect] = useState(false);
   useEffect(() => {
     // This is a workaround to defer connection to LiveKit until the client is hydrated
@@ -19,17 +20,26 @@ const LiveKitRoom = ({ token, serverUrl }: LiveKitRoomProps) => {
     setConnect(true);
   }, []);
 
+  if (!token || !serverUrl) {
+    return (
+        <div className="flex h-screen items-center justify-center">
+            <Loader2 className="h-16 w-16 animate-spin text-accent" />
+            <p className="ms-4 text-muted-foreground">Connecting to audio...</p>
+        </div>
+    );
+  }
+
+
   return (
     <LiveKitRoomComponent
-      video={true}
+      video={false}
       audio={true}
       token={token}
       serverUrl={serverUrl}
       connect={connect}
       data-lk-theme="default"
-      style={{ height: '100%' }}
     >
-      <VideoConference />
+        {children}
     </LiveKitRoomComponent>
   );
 };
