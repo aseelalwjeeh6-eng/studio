@@ -11,6 +11,7 @@ import useUserSession from '@/hooks/use-user-session';
 import { useEffect } from 'react';
 import { database } from '@/lib/firebase';
 import { ref, set } from 'firebase/database';
+import Hearts from '@/components/shared/Hearts';
 
 export default function LobbyPage() {
   const [roomId, setRoomId] = useState('');
@@ -62,13 +63,14 @@ export default function LobbyPage() {
   }
 
   return (
-    <div className="flex items-center justify-center py-12">
-      <div className="w-full max-w-2xl space-y-8">
+    <div className="relative flex items-center justify-center py-12 min-h-[calc(100vh-80px)]">
+      <Hearts />
+      <div className="w-full max-w-2xl space-y-8 z-10">
         <div className="text-center">
-          <h1 className="text-4xl sm:text-5xl font-headline font-bold text-foreground">
+          <h1 className="text-4xl sm:text-5xl font-headline font-bold text-foreground drop-shadow-lg">
             ردهة السينما
           </h1>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <p className="mt-4 text-lg text-muted-foreground drop-shadow-md">
             أنشئ غرفة جديدة أو انضم إلى أصدقائك
           </p>
         </div>
