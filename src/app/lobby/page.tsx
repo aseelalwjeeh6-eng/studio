@@ -28,24 +28,17 @@ export default function LobbyPage() {
     if (!user) return;
     setIsCreatingRoom(true);
     const newRoomId = uuidv4();
-    const roomRef = ref(database, `rooms/${newRoomId}`);
     try {
-      // Optimistic update: Navigate immediately.
-      router.push(`/rooms/${newRoomId}`);
-      
-      // Set initial room data in the background.
-      await set(roomRef, { 
+      const roomRef = ref(database, `rooms/${newRoomId}`);
+      await set(roomRef, {
         host: user.name,
         createdAt: Date.now(),
-        videoUrl: '', // Initialize videoUrl
-        seatedMembers: {}, // Initialize seatedMembers
+        videoUrl: '',
+        seatedMembers: {},
       });
-
+      router.push(`/rooms/${newRoomId}`);
     } catch (error) {
       console.error("Failed to create room:", error);
-      // If creation fails, we might want to inform the user.
-      // For now, we'll just log it and the user will be on the room page.
-      // A more robust solution might navigate back or show a toast.
       setIsCreatingRoom(false);
     }
   };
