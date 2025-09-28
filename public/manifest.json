@@ -1,0 +1,22 @@
+{
+  "theme_color": "#ff69b4",
+  "background_color": "#1a1a1a",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "name": "اصيل سينما \u2013 Aseel SOSO",
+  "short_name": "اصيل سينما",
+  "description": "\u0645\u0646\u0635\u0629 \u0645\u0634\u0627\u0647\u062f\u0629 \u0623\u0641\u0644\u0627\u0645 \u0644\u0644\u0639\u0634\u0627\u0642",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ const alegreya = Alegreya({
 export const metadata: Metadata = {
   title: 'اصيل سينما – Aseel SOSO',
   description: 'منصة مشاهدة أفلام للعشاق',
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({
@@ -24,6 +25,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
+        <meta name="theme-color" content="#ff69b4" />
       </head>
       <body className={cn('font-body antialiased', alegreya.className)}>
         <AppProviders>
