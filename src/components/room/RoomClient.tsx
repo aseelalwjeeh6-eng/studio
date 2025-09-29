@@ -166,7 +166,8 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   useEffect(() => {
     if (!user || isLoading) return;
 
-    const roomRef = ref(database, `rooms/${roomId}`);
+    const db = database();
+    const roomRef = ref(db, `rooms/${roomId}`);
     
     const setupRoom = async () => {
       try {
@@ -193,15 +194,15 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         setIsHost(roomData.host === user.name);
         setHostName(roomData.host);
 
-        await goOnline(database);
-        const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+        await goOnline(db);
+        const userRef = ref(db, `rooms/${roomId}/members/${user.name}`);
         const memberData = { name: user.name, avatarId: user.avatarId, joinedAt: serverTimestamp() };
         await set(userRef, memberData);
         onDisconnect(userRef).remove();
         
         const userSeat = seatedMembers.find(m => m.name === user.name);
         if(userSeat) {
-            const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
+            const seatRef = ref(db, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
             onDisconnect(seatRef).remove();
         }
 
@@ -215,10 +216,10 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
     setupRoom();
 
-    const membersRef = ref(database, `rooms/${roomId}/members`);
-    const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
-    const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
-    const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
+    const membersRef = ref(db, `rooms/${roomId}/members`);
+    const seatedMembersRef = ref(db, `rooms/${roomId}/seatedMembers`);
+    const videoUrlRef = ref(db, `rooms/${roomId}/videoUrl`);
+    const playerStateRef = ref(db, `rooms/${roomId}/playerState`);
     
     const onMembersValue = onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : []));
     const onSeatedMembersValue = onValue(seatedMembersRef, (snapshot) => {
@@ -231,21 +232,21 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
 
     return () => {
-      onMembersValue();
-      onSeatedMembersValue();
-      onVideoUrlValue();
-      onPlayerStateValue();
+      onValue(membersRef, onMembersValue);
+      onValue(seatedMembersRef, onSeatedMembersValue);
+      onValue(videoUrlRef, onVideoUrlValue);
+      onValue(playerStateRef, onPlayerStateValue);
       
       if (user) {
-        const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+        const memberRef = ref(db, `rooms/${roomId}/members/${user.name}`);
         const userSeat = seatedMembers.find(m => m.name === user.name);
         if (userSeat) {
-            const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
+            const seatRef = ref(db, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
             set(seatRef, null);
         }
         set(memberRef, null);
       }
-      goOffline(database);
+      goOffline(db);
     };
   }, [user, isLoading, roomId, router, toast]);
 
@@ -266,20 +267,21 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             const updates: { [key: string]: any } = {};
             updates[`/rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}/avatarId`] = user.avatarId;
             updates[`/rooms/${roomId}/members/${user.name}/avatarId`] = user.avatarId;
-            update(ref(database), updates);
+            update(ref(database()), updates);
         }
     }
   }, [user?.avatarId, isSeated, roomId, user, seatedMembers]);
     
   const handleTakeSeat = (seatId: number) => {
       if (!user) return;
-      const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${seatId}`);
+      const db = database();
+      const seatRef = ref(db, `rooms/${roomId}/seatedMembers/${seatId}`);
       const currentUserSeat = seatedMembers.find(m => m.name === user.name);
 
       runTransaction(seatRef, (currentData) => {
           if (currentData === null) {
               if (currentUserSeat) {
-                 const oldSeatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
+                 const oldSeatRef = ref(db, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
                  set(oldSeatRef, null);
               }
               return { name: user.name, avatarId: user.avatarId, seatId: seatId };
@@ -295,7 +297,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       if (!user) return;
       const currentUserSeat = seatedMembers.find(m => m.name === user.name);
       if (currentUserSeat) {
-          const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
+          const seatRef = ref(database(), `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
           set(seatRef, null);
       }
   };
@@ -350,17 +352,18 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
   const onSetVideo = (url: string) => {
     if (isHost && url) {
-      const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
+      const db = database();
+      const videoUrlRef = ref(db, `rooms/${roomId}/videoUrl`);
       set(videoUrlRef, url);
       // Reset player state for new video
-      const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
+      const playerStateRef = ref(db, `rooms/${roomId}/playerState`);
       set(playerStateRef, { isPlaying: true, seekTime: 0, timestamp: serverTimestamp() });
     }
   };
   
   const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
     if (isHost) {
-      const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
+      const playerStateRef = ref(database(), `rooms/${roomId}/playerState`);
       runTransaction(playerStateRef, (currentState) => {
         return { ...currentState, ...newState, timestamp: serverTimestamp() };
       });
@@ -371,12 +374,13 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const handleKickUser = (userNameToKick: string) => {
     if (!isHost || !userNameToKick) return;
 
-    const memberRef = ref(database, `rooms/${roomId}/members/${userNameToKick}`);
+    const db = database();
+    const memberRef = ref(db, `rooms/${roomId}/members/${userNameToKick}`);
     set(memberRef, null);
 
     const userSeat = seatedMembers.find(m => m.name === userNameToKick);
     if (userSeat) {
-        const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
+        const seatRef = ref(db, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
         set(seatRef, null);
     }
     toast({ title: `تم طرد ${userNameToKick}` });
@@ -593,6 +597,3 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 };
 
 export default RoomClient;
-
-    
-    

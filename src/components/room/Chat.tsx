@@ -42,13 +42,13 @@ const Chat = ({ roomId, user, isHost }: ChatProps) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const chatRef = ref(database, `rooms/${roomId}/chat`);
+    const chatRef = ref(database(), `rooms/${roomId}/chat`);
     const listener = onValue(chatRef, (snapshot) => {
       const data = snapshot.val();
       const loadedMessages: Message[] = data ? Object.values(data) : [];
       setMessages(loadedMessages.sort((a, b) => a.timestamp - b.timestamp));
     });
-    return () => listener();
+    return () => onValue(chatRef, listener);
   }, [roomId]);
 
   useEffect(() => {
@@ -68,7 +68,7 @@ const Chat = ({ roomId, user, isHost }: ChatProps) => {
     try {
         const { filteredText } = await filterProfanity({ text: newMessage });
 
-        const chatRef = ref(database, `rooms/${roomId}/chat`);
+        const chatRef = ref(database(), `rooms/${roomId}/chat`);
         const messageData = {
             sender: user.name,
             text: filteredText,
@@ -84,7 +84,7 @@ const Chat = ({ roomId, user, isHost }: ChatProps) => {
   };
 
   const handleClearChat = async () => {
-    const chatRef = ref(database, `rooms/${roomId}/chat`);
+    const chatRef = ref(database(), `rooms/${roomId}/chat`);
     await set(chatRef, null);
   };
 

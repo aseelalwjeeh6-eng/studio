@@ -1,4 +1,4 @@
-import { firestore, database as rtdb } from './firebase';
+import { firestore as getFirestoreInstance, database as getDatabaseInstance } from './firebase';
 import {
   collection,
   doc,
@@ -53,11 +53,11 @@ export type AppNotification = {
 
 
 // Collections
-const usersCol = collection(firestore, 'users');
+const usersCol = collection(getFirestoreInstance(), 'users');
 
 // Get a user document
 const getUserDoc = async (username: string) => {
-    const userRef = doc(firestore, 'users', username);
+    const userRef = doc(getFirestoreInstance(), 'users', username);
     const userSnap = await getDoc(userRef);
     return { ref: userRef, snap: userSnap, data: userSnap.data() as AppUser | undefined };
 };
@@ -144,7 +144,7 @@ export const acceptFriendRequest = async (senderName: string, recipientName: str
 
     const requestToRemove = recipientData?.friendRequests?.find(req => req.senderName === senderName);
 
-    const batch = writeBatch(firestore);
+    const batch = writeBatch(getFirestoreInstance());
 
     batch.update(recipientRef, {
         friends: arrayUnion(senderName),
@@ -208,7 +208,7 @@ export const removeFriend = async (currentUsername: string, friendNameToRemove: 
     const { ref: currentUserRef } = await getUserDoc(currentUsername);
     const { ref: friendToRemoveRef } = await getUserDoc(friendNameToRemove);
 
-    const batch = writeBatch(firestore);
+    const batch = writeBatch(getFirestoreInstance());
 
     batch.update(currentUserRef, {
         friends: arrayRemove(friendNameToRemove)
@@ -246,7 +246,7 @@ export const sendRoomInvitation = async (senderName: string, recipientName: stri
         invitations: arrayUnion(newInvitation)
     });
     
-    const roomRefRtdb = ref(rtdb, `rooms/${roomId}`);
+    const roomRefRtdb = ref(getDatabaseInstance(), `rooms/${roomId}`);
     const roomSnapshot = await get(roomRefRtdb);
     if (roomSnapshot.exists() && roomSnapshot.val().isPrivate) {
         const updates: { [key: string]: any } = {};

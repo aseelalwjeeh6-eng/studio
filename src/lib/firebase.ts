@@ -16,17 +16,44 @@ const firebaseConfig = {
   "measurementId": "G-5G3W9K5153"
 };
 
-const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const database: Database = getDatabase(app);
-const firestore: Firestore = getFirestore(app);
-let analytics: Analytics | undefined;
-
-if (typeof window !== 'undefined') {
-  isSupported().then((supported) => {
-    if (supported) {
-      analytics = getAnalytics(app);
-    }
-  });
+let app: FirebaseApp;
+if (!getApps().length) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
 }
 
-export { app, database, firestore, analytics };
+let firestore: Firestore;
+let database: Database;
+let analytics: Analytics | undefined;
+
+function getFirestoreInstance() {
+    if (!firestore) {
+        firestore = getFirestore(app);
+    }
+    return firestore;
+}
+
+function getDatabaseInstance() {
+    if (!database) {
+        database = getDatabase(app);
+    }
+    return database;
+}
+
+function getAnalyticsInstance() {
+    if (typeof window !== 'undefined' && !analytics) {
+        isSupported().then((supported) => {
+            if (supported) {
+                analytics = getAnalytics(app);
+            }
+        });
+    }
+    return analytics;
+}
+
+// Call this once to initialize analytics if needed
+getAnalyticsInstance();
+
+
+export { app, getFirestoreInstance as firestore, getDatabaseInstance as database, getAnalyticsInstance as analytics };
