@@ -16,7 +16,7 @@ import LiveKitRoom from './LiveKitRoom';
 import Seats from './Seats';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '../ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -242,7 +242,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     const onPlayerStateValue = onValue(playerStateRef, (snapshot) => setPlayerState(snapshot.val()));
     const onHostValue = onValue(hostRef, (snapshot) => setHostName(snapshot.val() || ''));
     const onModeratorsValue = onValue(moderatorsRef, (snapshot) => setModerators(snapshot.val() || []));
-    const onPlaylistValue = onValue(playlistRef, (snapshot) => setPlaylist(snapshot.val() || []));
+    const onPlaylistValue = onValue(playlistRef, (snapshot) => setPlaylist(snapshot.val() ? Object.values(snapshot.val()) : []));
 
     return () => {
       onValue(membersRef, onMembersValue);
@@ -401,18 +401,25 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
   const handleVideoEnded = () => {
     if (!canControl) return;
-
+  
     const currentVideoId = videoUrl.includes('v=') ? new URL(videoUrl).searchParams.get('v') : null;
-    const currentIndex = playlist.findIndex(item => item.videoId === currentVideoId);
-
+  
+    const currentVideoIndex = playlist.findIndex(item => item.videoId === currentVideoId);
+    const isLastVideo = currentVideoIndex === playlist.length - 1;
+  
+    // Remove the video that just ended from the playlist
     const playlistRef = ref(database(), `rooms/${roomId}/playlist`);
     const newPlaylist = playlist.filter(item => item.videoId !== currentVideoId);
-    set(playlistRef, newPlaylist);
-
-    if (currentIndex !== -1 && newPlaylist.length > 0) {
-      const nextVideo = newPlaylist[0];
-      onSetVideo(`https://www.youtube.com/watch?v=${nextVideo.videoId}`);
+    set(playlistRef, newPlaylist.length > 0 ? newPlaylist : null);
+  
+    if (newPlaylist.length > 0 && !isLastVideo) {
+      // Find the next video to play, which is now at the same index
+      const nextVideo = newPlaylist[currentVideoIndex];
+      if (nextVideo) {
+        onSetVideo(`https://www.youtube.com/watch?v=${nextVideo.videoId}`);
+      }
     } else {
+      // If it was the last video or playlist is now empty, clear the player
       onSetVideo('');
     }
   };

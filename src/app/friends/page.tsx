@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect, useTransition, useRef } from 'react';
 import useUserSession from '@/hooks/use-user-session';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +16,8 @@ export default function FriendsPage() {
   const { user, isLoaded } = useUserSession();
   const router = useRouter();
   const { toast } = useToast();
+  
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<AppUser[]>([]);
@@ -183,8 +185,12 @@ export default function FriendsPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center text-muted-foreground py-4">
+                <div className="text-center text-muted-foreground py-4 space-y-3">
                   <p>ليس لديك أصدقاء بعد. ابحث عن أصدقاء لإضافتهم!</p>
+                  <Button onClick={() => searchInputRef.current?.focus()}>
+                    <Search className="me-2"/>
+                    ابحث عن أصدقاء الآن!
+                  </Button>
                 </div>
               )}
             </CardContent>
@@ -244,6 +250,7 @@ export default function FriendsPage() {
             <CardContent>
               <form onSubmit={handleSearch} className="flex gap-2 mb-4">
                 <Input 
+                  ref={searchInputRef}
                   type="text" 
                   placeholder="ابحث بالاسم..." 
                   className="bg-input"
