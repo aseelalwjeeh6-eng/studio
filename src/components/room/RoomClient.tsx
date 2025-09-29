@@ -11,7 +11,7 @@ import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
 import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { AudioConference } from '@livekit/components-react';
+import { AudioConference, useLiveKitRoom } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
 import Seats from './Seats';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
@@ -129,6 +129,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const [invitedFriends, setInvitedFriends] = useState<Set<string>>(new Set());
   
   const { toast } = useToast();
+  const { room } = useLiveKitRoom();
 
   const viewers = useMemo(() => {
     const seatedNames = new Set(seatedMembers.map(m => m.name));
@@ -454,6 +455,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                                 currentUser={user}
                                 isHost={isHost}
                                 onKickUser={handleKickUser}
+                                room={room}
                             />
                             <ViewerInfo members={viewers} />
                         </div>
@@ -592,4 +594,5 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
 export default RoomClient;
 
+    
     

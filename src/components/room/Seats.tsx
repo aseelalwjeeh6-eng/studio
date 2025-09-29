@@ -5,13 +5,12 @@ import { SeatedMember } from './RoomClient';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLocalParticipant, useParticipants } from '@livekit/components-react';
-import { Participant } from 'livekit-client';
+import { Participant, Room } from 'livekit-client';
 import { cn } from '@/lib/utils';
 import { User as UserSession } from '@/app/providers';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { useState } from 'react';
 
 const Seat = ({ 
     seatId,
@@ -23,6 +22,7 @@ const Seat = ({
     onKickUser,
     isCurrentUserSeated,
     onLeaveSeat,
+    room,
 }: { 
     seatId: number;
     seatedMember?: SeatedMember;
@@ -33,13 +33,12 @@ const Seat = ({
     onKickUser: (userName: string) => void;
     isCurrentUserSeated: boolean;
     onLeaveSeat: () => void;
+    room?: Room;
 }) => {
     const isOccupied = !!seatedMember;
     const isCurrentUserSeatedHere = isOccupied && seatedMember.name === currentUser.name;
     const { localParticipant } = useLocalParticipant();
     
-    const [isLocallyMutedByHost, setIsLocallyMutedByHost] = useState(false);
-
     const isMuted = participant ? participant.isMicrophoneMuted : true;
     const isSpeaking = participant ? participant.isSpeaking : false;
     
@@ -53,11 +52,16 @@ const Seat = ({
     };
     
     const handleHostMuteToggle = () => {
-        if (!isHost || !seatedMember || isCurrentUserSeatedHere) return;
-        setIsLocallyMutedByHost(!isLocallyMutedByHost);
-    }
+        if (!isHost || !participant || isCurrentUserSeatedHere || !room) return;
+        
+        const micTrack = participant.getTrackPublication(Participant.Source.Microphone);
+        if (micTrack?.track) {
+            // Mute the track for everyone in the room
+            room.localParticipant.setTrackMuted(micTrack.trackSid, !micTrack.isMuted);
+        }
+    };
 
-    const hostControls = isHost && isOccupied && !isCurrentUserSeatedHere && (
+    const hostControls = isHost && participant && !isCurrentUserSeatedHere && (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="absolute -top-2 -left-2 w-7 h-7 rounded-full bg-secondary/80 hover:bg-secondary">
@@ -65,11 +69,11 @@ const Seat = ({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-                <DropdownMenuItem onClick={handleHostMuteToggle}>
-                    {isLocallyMutedByHost ? <Mic className="me-2" /> : <MicOff className="me-2" />}
-                    {isLocallyMutedByHost ? "إلغاء كتم الصوت" : "كتم الصوت"}
+                <DropdownMenuItem onClick={handleHostMuteToggle} disabled={isMuted}>
+                    <MicOff className="me-2" />
+                    كتم الصوت
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onKickUser(seatedMember.name)} className="text-destructive">
+                <DropdownMenuItem onClick={() => onKickUser(seatedMember!.name)} className="text-destructive">
                     <ShieldX className="me-2" />
                     طرد من الغرفة
                 </DropdownMenuItem>
@@ -86,8 +90,6 @@ const Seat = ({
     );
     
     const canTakeSeat = !isOccupied && !isCurrentUserSeated;
-    const isSeatDisabled = isOccupied && !isCurrentUserSeatedHere;
-
 
     const seatContent = () => {
         if (isOccupied) {
@@ -99,7 +101,7 @@ const Seat = ({
                         isSpeaking ? "border-accent animate-pulse" : "border-transparent",
                         isCurrentUserSeatedHere ? "border-accent ring-2 ring-accent" : ""
                     )}>
-                        <AvatarImage src={avatar?.imageUrl} alt={seatedMember.name} />
+                        <AvatarImage src={avatar?.imageUrl} alt={seatedMember!.name} />
                         <AvatarFallback>
                             <User className="w-10 h-10" />
                         </AvatarFallback>
@@ -120,7 +122,6 @@ const Seat = ({
     };
 
     const name = isOccupied ? (isCurrentUserSeatedHere ? "أنت" : seatedMember.name) : "شاغر";
-    const finalIsMuted = isMuted || (isOccupied && !isCurrentUserSeatedHere && isLocallyMutedByHost);
 
     return (
         <TooltipProvider>
@@ -141,7 +142,7 @@ const Seat = ({
                     <p>{seatedMember?.name || (canTakeSeat ? "خذ مقعدًا" : "شاغر")}</p>
                      {isOccupied && (
                         <p className="text-xs text-muted-foreground">
-                            { isSpeaking ? 'يتحدث...' : (finalIsMuted ? (isLocallyMutedByHost ? 'مكتوم من قبل المضيف' : 'الصوت مكتوم') : 'الميكروفون مفتوح') }
+                            { isSpeaking ? 'يتحدث...' : (isMuted ? 'الصوت مكتوم' : 'الميكروفون مفتوح') }
                         </p>
                     )}
                 </TooltipContent>
@@ -156,7 +157,8 @@ const Seats = ({
     onLeaveSeat, 
     currentUser,
     isHost,
-    onKickUser
+    onKickUser,
+    room,
 }: { 
     seatedMembers: SeatedMember[],
     onTakeSeat: (seatId: number) => void;
@@ -164,6 +166,7 @@ const Seats = ({
     currentUser: UserSession;
     isHost: boolean;
     onKickUser: (userName: string) => void;
+    room?: Room;
 }) => {
     const totalSeats = 8;
   
@@ -203,6 +206,7 @@ const Seats = ({
                         onKickUser={onKickUser}
                         isCurrentUserSeated={isCurrentUserSeated}
                         onLeaveSeat={onLeaveSeat}
+                        room={room}
                     />
                 ))}
             </div>
@@ -211,3 +215,5 @@ const Seats = ({
 };
 
 export default Seats;
+
+    
