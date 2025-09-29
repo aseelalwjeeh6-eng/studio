@@ -9,7 +9,7 @@ import Player from './Player';
 import Chat from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
-import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video } from 'lucide-react';
+import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AudioConference } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
@@ -21,6 +21,7 @@ import { Input } from '../ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import VideoConference from './VideoConference';
 
 export type Member = { 
   name: string;
@@ -50,7 +51,7 @@ interface YouTubeVideo {
   };
 }
 
-const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo }: { onSearchClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; }) => {
+const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwitchToPlayer, videoMode }: { onSearchClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; onSwitchToPlayer: () => void; videoMode: boolean; }) => {
     const { user } = useUserSession();
     const avatar = PlaceHolderImages.find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id.startsWith('avatar'));
 
@@ -63,19 +64,27 @@ const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo }: { o
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-card/80 backdrop-blur-lg">
-                    <DropdownMenuItem onClick={onSwitchToVideo}>
-                        <Video className="me-2" /> مكالمة فيديو
-                    </DropdownMenuItem>
+                    {videoMode ? (
+                         <DropdownMenuItem onClick={onSwitchToPlayer}>
+                            <Film className="me-2" /> العودة للمشاهدة
+                        </DropdownMenuItem>
+                    ) : (
+                        <DropdownMenuItem onClick={onSwitchToVideo}>
+                            <Video className="me-2" /> مكالمة فيديو
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={onLeaveRoom} className="text-destructive">
                         <LogOut className="me-2" /> مغادرة الغرفة
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button onClick={onSearchClick} variant="secondary">
-                <Youtube className="me-2" />
-                بحث يوتيوب
-            </Button>
+            {!videoMode && (
+                <Button onClick={onSearchClick} variant="secondary">
+                    <Youtube className="me-2" />
+                    بحث يوتيوب
+                </Button>
+            )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <div className='text-right'>
                     <p className='font-bold text-foreground'>غرفة الرمسسة</p>
@@ -90,7 +99,7 @@ const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo }: { o
     )
 }
 
-const RoomClient = ({ roomId }: { roomId: string }) => {
+const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?: boolean }) => {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUserSession();
   const [allMembers, setAllMembers] = useState<Member[]>([]);
@@ -122,6 +131,14 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   const handleLeaveRoom = () => {
     router.push('/lobby');
   };
+
+  const handleSwitchToVideo = () => {
+    router.push(`/rooms/${roomId}/video`);
+  };
+
+  const handleSwitchToPlayer = () => {
+      router.push(`/rooms/${roomId}`);
+  }
   
   useEffect(() => {
     if (isUserLoaded && !user) {
@@ -292,12 +309,9 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
     if (isHost) {
       const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
-      // Use runTransaction or merge for updating partial state if needed,
-      // for simplicity, we're setting the whole object.
-      // Make sure to merge with existing state to not overwrite parts.
       get(playerStateRef).then((snapshot) => {
         const currentState = snapshot.val() || {};
-        const updatedState = { ...currentState, ...newState };
+        const updatedState = { ...currentState, ...newState, timestamp: serverTimestamp() };
         set(playerStateRef, updatedState);
       });
     }
@@ -332,35 +346,45 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL!}
       user={user}
       isSeated={isSeated}
+      videoMode={videoMode}
     >
         <div className="flex flex-col h-screen w-full bg-background items-center">
             <RoomHeader 
                 onSearchClick={() => setIsSearchOpen(true)} 
                 roomId={roomId}
                 onLeaveRoom={handleLeaveRoom}
-                onSwitchToVideo={() => toast({ title: "ميزة الفيديو سيتم إضافتها قريباً!"})}
+                onSwitchToVideo={handleSwitchToVideo}
+                onSwitchToPlayer={handleSwitchToPlayer}
+                videoMode={videoMode}
             />
             <main className="w-full max-w-4xl mx-auto flex-grow flex flex-col gap-4 px-4">
-                <Player 
-                    videoUrl={videoUrl} 
-                    onSetVideo={onSetVideo} 
-                    isHost={isHost} 
-                    onSearchClick={() => setIsSearchOpen(true)}
-                    playerState={playerState}
-                    onPlayerStateChange={handlePlayerStateChange}
-                />
-                <Seats 
-                    seatedMembers={seatedMembers}
-                    onTakeSeat={handleTakeSeat}
-                    onLeaveSeat={handleLeaveSeat}
-                    currentUser={user}
-                    isHost={isHost}
-                    onKickUser={handleKickUser}
-                />
-                <ViewerInfo members={viewers} />
-                <div className="flex-grow min-h-0">
-                    <Chat roomId={roomId} user={user} />
-                </div>
+                {videoMode ? (
+                    <VideoConference />
+                ) : (
+                    <>
+                        <Player 
+                            videoUrl={videoUrl} 
+                            onSetVideo={onSetVideo} 
+                            isHost={isHost} 
+                            onSearchClick={() => setIsSearchOpen(true)}
+                            playerState={playerState}
+                            onPlayerStateChange={handlePlayerStateChange}
+                        />
+                        <Seats 
+                            seatedMembers={seatedMembers}
+                            onTakeSeat={handleTakeSeat}
+                            onLeaveSeat={handleLeaveSeat}
+                            currentUser={user}
+                            isHost={isHost}
+                            onKickUser={handleKickUser}
+                        />
+                        <ViewerInfo members={viewers} />
+                        <div className="flex-grow min-h-0">
+                            <Chat roomId={roomId} user={user} />
+                        </div>
+                    </>
+                )}
+
             </main>
              <div className="hidden">
                 <AudioConference />
@@ -453,5 +477,3 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
 };
 
 export default RoomClient;
-
-    
