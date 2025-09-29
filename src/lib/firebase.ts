@@ -16,8 +16,7 @@ const firebaseConfig = {
   "measurementId": "G-5G3W9K5153"
 };
 
-
-const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const database: Database = getDatabase(app);
 const firestore: Firestore = getFirestore(app);
 let analytics: Analytics | undefined;
