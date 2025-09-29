@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Eye, User, Users } from 'lucide-react';
 import { Member } from './RoomClient';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 
 interface ViewerInfoProps {
@@ -12,8 +13,12 @@ interface ViewerInfoProps {
 
 const ViewerInfo = ({ members }: ViewerInfoProps) => {
   const viewerCount = members.length;
-  const displayedViewers = members.slice(0, 5);
+  const displayedViewers = members.slice(0, 10);
   const hiddenViewersCount = Math.max(0, viewerCount - displayedViewers.length);
+
+  const getAvatar = (member: Member) => {
+    return PlaceHolderImages.find(p => p.id === member.avatarId) ?? PlaceHolderImages[0];
+  }
 
   return (
     <TooltipProvider>
@@ -23,6 +28,7 @@ const ViewerInfo = ({ members }: ViewerInfoProps) => {
                 <Tooltip key={member.name}>
                     <TooltipTrigger>
                         <Avatar className="w-6 h-6 border-2 border-background">
+                            <AvatarImage src={getAvatar(member)?.imageUrl} alt={member.name} />
                             <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                     </TooltipTrigger>

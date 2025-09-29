@@ -4,7 +4,7 @@ import { Armchair, Mic, MicOff, User, LogOut, ShieldX, MoreVertical } from 'luci
 import { SeatedMember } from './RoomClient';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useLocalParticipant } from '@livekit/components-react';
+import { useLocalParticipant, useParticipants } from '@livekit/components-react';
 import { Participant } from 'livekit-client';
 import { cn } from '@/lib/utils';
 import { User as UserSession } from '@/app/providers';
@@ -18,31 +18,32 @@ const Seat = ({
     seatedMember, 
     participant,
     onTakeSeat,
-    onLeaveSeat,
     currentUser,
     isHost,
     onKickUser,
+    isCurrentUserSeated,
+    onLeaveSeat,
 }: { 
     seatId: number;
     seatedMember?: SeatedMember;
     participant?: Participant;
     onTakeSeat: (seatId: number) => void;
-    onLeaveSeat: () => void;
     currentUser: UserSession;
     isHost: boolean;
     onKickUser: (userName: string) => void;
+    isCurrentUserSeated: boolean;
+    onLeaveSeat: () => void;
 }) => {
     const isOccupied = !!seatedMember;
     const isCurrentUserSeatedHere = isOccupied && seatedMember.name === currentUser.name;
     const { localParticipant } = useLocalParticipant();
     
-    // UI-only mute state for host controls
     const [isLocallyMutedByHost, setIsLocallyMutedByHost] = useState(false);
 
     const isMuted = participant ? participant.isMicrophoneMuted : true;
     const isSpeaking = participant ? participant.isSpeaking : false;
     
-    const avatar = PlaceHolderImages.find(p => p.id === seatedMember?.avatarId) ?? PlaceHolderImages.find(p => p.id.startsWith('avatar'));
+    const avatar = PlaceHolderImages.find(p => p.id === seatedMember?.avatarId) ?? PlaceHolderImages[0];
 
     const toggleOwnMute = () => {
         if (isCurrentUserSeatedHere && localParticipant) {
@@ -77,13 +78,14 @@ const Seat = ({
     );
 
     const userControls = isCurrentUserSeatedHere && localParticipant && (
-         <div className="absolute -bottom-2 -right-2">
+         <div className="absolute -bottom-2 -right-2 z-10">
              <Button size="icon" onClick={toggleOwnMute} className="w-8 h-8 rounded-full bg-secondary hover:bg-secondary/80">
                 {localParticipant.isMicrophoneMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-accent" />}
             </Button>
         </div>
     );
     
+    const canTakeSeat = !isOccupied && !isCurrentUserSeated;
     const isSeatDisabled = isOccupied && !isCurrentUserSeatedHere;
 
 
@@ -94,10 +96,10 @@ const Seat = ({
                     {hostControls}
                     <Avatar className={cn(
                         "w-20 h-20 border-2",
-                        isSpeaking ? "border-accent animate-pulse" : "border-primary",
+                        isSpeaking ? "border-accent animate-pulse" : "border-transparent",
                         isCurrentUserSeatedHere ? "border-accent ring-2 ring-accent" : ""
                     )}>
-                        <AvatarImage src={avatar?.imageUrl} />
+                        <AvatarImage src={avatar?.imageUrl} alt={seatedMember.name} />
                         <AvatarFallback>
                             <User className="w-10 h-10" />
                         </AvatarFallback>
@@ -110,7 +112,7 @@ const Seat = ({
             <button 
                 onClick={() => onTakeSeat(seatId)} 
                 className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center border-2 border-dashed border-border hover:border-accent transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={isSeatDisabled}
+                disabled={!canTakeSeat}
             >
                 <Armchair className="w-10 h-10 text-muted-foreground" />
             </button>
@@ -136,7 +138,7 @@ const Seat = ({
                     </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                    <p>{seatedMember?.name || "شاغر"}</p>
+                    <p>{seatedMember?.name || (canTakeSeat ? "خذ مقعدًا" : "شاغر")}</p>
                      {isOccupied && (
                         <p className="text-xs text-muted-foreground">
                             { isSpeaking ? 'يتحدث...' : (finalIsMuted ? (isLocallyMutedByHost ? 'مكتوم من قبل المضيف' : 'الصوت مكتوم') : 'الميكروفون مفتوح') }
@@ -165,11 +167,16 @@ const Seats = ({
 }) => {
     const totalSeats = 8;
   
-    const { remoteParticipants } = useLocalParticipant();
+    const participants = useParticipants();
+    const { localParticipant } = useLocalParticipant();
   
+    const allParticipants = [localParticipant, ...participants];
+
     const getParticipant = (name: string): Participant | undefined => {
-      return remoteParticipants.find(p => p.identity === name);
+      return allParticipants.find(p => p.identity === name);
     };
+
+    const isCurrentUserSeated = seatedMembers.some(m => m.name === currentUser.name);
   
     const seats = Array.from({ length: totalSeats }, (_, index) => {
         const seatId = index + 1;
@@ -183,7 +190,7 @@ const Seats = ({
   
     return (
         <div className="w-full py-4">
-            <div className="grid grid-cols-4 gap-x-4 gap-y-8">
+            <div className="grid grid-cols-4 sm:grid-cols-8 gap-x-4 gap-y-8">
                 {seats.map(({ seatId, seatedMember, participant }) => (
                     <Seat 
                         key={seatId} 
@@ -191,10 +198,11 @@ const Seats = ({
                         seatedMember={seatedMember} 
                         participant={participant}
                         onTakeSeat={onTakeSeat}
-                        onLeaveSeat={onLeaveSeat}
                         currentUser={currentUser}
                         isHost={isHost}
                         onKickUser={onKickUser}
+                        isCurrentUserSeated={isCurrentUserSeated}
+                        onLeaveSeat={onLeaveSeat}
                     />
                 ))}
             </div>

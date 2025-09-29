@@ -69,6 +69,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     setIsLoaded(true);
   }, []);
 
+  useEffect(() => {
+    if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
+    } else {
+        localStorage.removeItem('user');
+    }
+  }, [user]);
+
+
   return (
     <UserContext.Provider value={{ user, setUser, isLoaded }}>
       {children}

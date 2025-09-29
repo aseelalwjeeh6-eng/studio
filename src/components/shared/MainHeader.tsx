@@ -16,7 +16,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import useUserSession from '@/hooks/use-user-session';
 import { useEffect, useState } from 'react';
-import { AppNotification, getNotifications } from '@/lib/firebase-service';
+import { AppNotification, getNotifications, removeNotification } from '@/lib/firebase-service';
 import { Bell, LogIn, UserPlus } from 'lucide-react';
 
 
@@ -107,16 +107,17 @@ export function MainHeader() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [hasUnread, setHasUnread] = useState(false);
 
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!user) return;
-      const notifs = await getNotifications(user.name);
-      setNotifications(notifs);
-      setHasUnread(notifs.length > 0);
-    };
+  const fetchNotifications = async () => {
+    if (!user) return;
+    const notifs = await getNotifications(user.name);
+    setNotifications(notifs.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)));
+    setHasUnread(notifs.some(n => !n.read));
+  };
 
+
+  useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // Poll every 30 seconds
+    const interval = setInterval(fetchNotifications, 15000); // Poll every 15 seconds
 
     return () => clearInterval(interval);
   }, [user]);
@@ -132,11 +133,25 @@ export function MainHeader() {
     { href: '/profile', label: 'الملف الشخصي' },
   ];
   
-  const handleNotificationClick = (notification: AppNotification) => {
+  const handleNotificationClick = async (notification: AppNotification) => {
+    if (!user) return;
+    
     if (notification.type === 'friendRequest') {
         router.push('/friends');
     } else if (notification.type === 'roomInvitation' && notification.roomId) {
         router.push(`/rooms/${notification.roomId}`);
+    }
+
+    if(notification.id) {
+        await removeNotification(user.name, notification.id);
+        fetchNotifications();
+    }
+  }
+
+  const handleOpenMenu = () => {
+    if (notifications.some(n => !n.read)) {
+        setHasUnread(false);
+        // Optionally mark all as read in the backend
     }
   }
 
@@ -196,7 +211,7 @@ export function MainHeader() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <DropdownMenu onOpenChange={() => setHasUnread(false)}>
+          <DropdownMenu onOpenChange={handleOpenMenu}>
             <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative rounded-full">
                     <Bell className="h-5 w-5" />
@@ -213,8 +228,8 @@ export function MainHeader() {
                 <DropdownMenuLabel>الإشعارات</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {notifications.length > 0 ? (
-                    notifications.map((notif, index) => (
-                        <DropdownMenuItem key={index} className="flex justify-between items-center" onSelect={() => handleNotificationClick(notif)}>
+                    notifications.map((notif) => (
+                        <DropdownMenuItem key={notif.id} className="flex justify-between items-center cursor-pointer" onSelect={() => handleNotificationClick(notif)}>
                            <div className="flex items-center">
                              {notif.type === 'friendRequest' ? <UserPlus className="me-2 text-accent" /> : <LogIn className="me-2 text-accent" />}
                              <div className='flex flex-col'>

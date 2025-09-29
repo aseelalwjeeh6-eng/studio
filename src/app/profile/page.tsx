@@ -9,6 +9,7 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { User as UserIcon, Loader2, CheckCircle, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { upsertUser } from '@/lib/firebase-service';
 
 export default function ProfilePage() {
   const { user, setUser, isLoaded } = useUserSession();
@@ -27,9 +28,11 @@ export default function ProfilePage() {
 
   const handleAvatarSelect = (avatarId: string) => {
     if (!user) return;
-    startTransition(() => {
+    startTransition(async () => {
       setSelectedAvatarId(avatarId);
-      setUser({ ...user, avatarId });
+      const updatedUser = { ...user, avatarId };
+      setUser(updatedUser);
+      await upsertUser(updatedUser);
     });
   };
 

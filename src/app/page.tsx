@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [name, setName] = useState('');
   const { user, setUser, isLoaded } = useUserSession();
   const router = useRouter();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => {
     if (isLoaded && user?.name) {
@@ -23,10 +24,11 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
-      const newUser = { name: name.trim() };
-      setUser(newUser);
+    if (name.trim() && !isLoggingIn) {
+      setIsLoggingIn(true);
+      const newUser = { name: name.trim(), avatarId: 'avatar1' };
       await upsertUser(newUser);
+      setUser(newUser);
       router.push('/lobby');
     }
   };
@@ -65,8 +67,8 @@ export default function LoginPage() {
                 aria-label="ادخل اسمك"
               />
             </div>
-            <Button type="submit" className="w-full h-12 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
-              دخول
+            <Button type="submit" className="w-full h-12 text-lg bg-accent text-accent-foreground hover:bg-accent/90" disabled={isLoggingIn}>
+              {isLoggingIn ? <Loader2 className="animate-spin" /> : 'دخول'}
             </Button>
           </form>
         </CardContent>

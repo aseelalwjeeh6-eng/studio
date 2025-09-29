@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { database } from '@/lib/firebase';
-import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction } from 'firebase/database';
+import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction, update } from 'firebase/database';
 import useUserSession from '@/hooks/use-user-session';
 import Player from './Player';
 import Chat from './Chat';
@@ -55,7 +55,7 @@ interface YouTubeVideo {
 
 const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwitchToPlayer, videoMode, onInviteClick, isHost }: { onSearchClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; onSwitchToPlayer: () => void; videoMode: boolean; onInviteClick: () => void; isHost: boolean; }) => {
     const { user } = useUserSession();
-    const avatar = PlaceHolderImages.find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id.startsWith('avatar'));
+    const avatar = PlaceHolderImages.find(p => p.id === user?.avatarId) ?? PlaceHolderImages[0];
 
     return (
         <header className="flex items-center justify-between p-4 w-full">
@@ -194,7 +194,8 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
         await goOnline(database);
         const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
-        await set(userRef, { name: user.name, avatarId: user.avatarId, joinedAt: serverTimestamp() });
+        const memberData = { name: user.name, avatarId: user.avatarId, joinedAt: serverTimestamp() };
+        await set(userRef, memberData);
         onDisconnect(userRef).remove();
         
         const userSeat = seatedMembers.find(m => m.name === user.name);
@@ -255,6 +256,19 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
           }
       }
   }, []);
+
+  useEffect(() => {
+    // When avatar changes, update RTDB
+    if (user && isSeated) {
+        const currentUserSeat = seatedMembers.find(m => m.name === user.name);
+        if (currentUserSeat) {
+            const updates: { [key: string]: any } = {};
+            updates[`/rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}/avatarId`] = user.avatarId;
+            updates[`/rooms/${roomId}/members/${user.name}/avatarId`] = user.avatarId;
+            update(ref(database), updates);
+        }
+    }
+  }, [user?.avatarId, isSeated, roomId, user, seatedMembers]);
     
   const handleTakeSeat = (seatId: number) => {
       if (!user) return;
