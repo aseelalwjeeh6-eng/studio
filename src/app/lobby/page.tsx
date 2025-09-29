@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Film, PlusCircle, LogIn, Loader2, Users, DoorOpen } from 'lucide-react';
+import { PlusCircle, LogIn, Loader2, Users, DoorOpen, Lock, Globe } from 'lucide-react';
 import useUserSession from '@/hooks/use-user-session';
 import { database } from '@/lib/firebase';
 import { ref, set, onValue, off, goOnline } from 'firebase/database';
@@ -16,6 +16,7 @@ interface RoomData {
   id: string;
   host: string;
   memberCount: number;
+  isPrivate?: boolean;
 }
 
 export default function LobbyPage() {
@@ -48,9 +49,10 @@ export default function LobbyPage() {
               id: key,
               host: room.host,
               memberCount: memberCount,
+              isPrivate: room.isPrivate || false,
             };
           })
-          .filter(room => room.memberCount > 0); // Only show rooms with members
+          .filter(room => room.memberCount > 0 && !room.isPrivate); // Only show public rooms with members
         setActiveRooms(loadedRooms);
       } else {
         setActiveRooms([]);
@@ -61,15 +63,13 @@ export default function LobbyPage() {
     return () => off(roomsRef, 'value', listener);
   }, []);
 
-  const handleCreateRoom = () => {
+  const handleCreateRoom = (isPrivate: boolean) => {
     if (!user || isCreatingRoom) return;
     setIsCreatingRoom(true);
     const newRoomId = uuidv4();
     
-    // Optimistic update: navigate immediately
     router.push(`/rooms/${newRoomId}`);
 
-    // Create room in the background
     const roomRef = ref(database, `rooms/${newRoomId}`);
     set(roomRef, {
       host: user.name,
@@ -77,10 +77,9 @@ export default function LobbyPage() {
       videoUrl: '',
       seatedMembers: {},
       members: {},
+      isPrivate: isPrivate,
     }).catch(error => {
       console.error("Failed to create room in background:", error);
-      // If creation fails, the user is already in the room page,
-      // which will handle the "room not found" case.
     });
   };
 
@@ -121,17 +120,25 @@ export default function LobbyPage() {
                         <span>إنشاء غرفة جديدة</span>
                         </CardTitle>
                         <CardDescription>
-                        ابدأ تجربة مشاهدة جديدة واحصل على رمز لمشاركته.
+                        اختر نوع الغرفة التي تريد إنشاءها.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <Button onClick={handleCreateRoom} className="w-full h-12 text-lg bg-accent text-accent-foreground hover:bg-accent/90" disabled={isCreatingRoom}>
+                    <CardContent className="grid sm:grid-cols-2 gap-4">
+                        <Button onClick={() => handleCreateRoom(false)} className="h-12 text-lg bg-primary text-primary-foreground hover:bg-primary/90" disabled={isCreatingRoom}>
                         {isCreatingRoom ? (
                             <Loader2 className="me-2 h-5 w-5 animate-spin" />
                         ) : (
-                            <Film className="me-2 h-5 w-5" />
+                            <Globe className="me-2 h-5 w-5" />
                         )}
-                        {isCreatingRoom ? 'جاري الإنشاء...' : 'إنشاء وعرض'}
+                         غرفة عامة
+                        </Button>
+                        <Button onClick={() => handleCreateRoom(true)} className="h-12 text-lg bg-accent text-accent-foreground hover:bg-accent/90" disabled={isCreatingRoom}>
+                        {isCreatingRoom ? (
+                            <Loader2 className="me-2 h-5 w-5 animate-spin" />
+                        ) : (
+                            <Lock className="me-2 h-5 w-5" />
+                        )}
+                         غرفة خاصة
                         </Button>
                     </CardContent>
                 </Card>
