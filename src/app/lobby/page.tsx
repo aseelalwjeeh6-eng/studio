@@ -10,7 +10,7 @@ import useUserSession from '@/hooks/use-user-session';
 import { database } from '@/lib/firebase';
 import { ref, onValue, off, goOnline } from 'firebase/database';
 import Hearts from '@/components/shared/Hearts';
-import { createRoom } from '@/ai/flows/room-creation-flow';
+import { createRoom } from '@/lib/firebase-service';
 
 interface RoomData {
   id: string;
@@ -70,7 +70,7 @@ export default function LobbyPage() {
     setCreatingRoomType(roomType);
 
     try {
-      const { roomId: newRoomId } = await createRoom({
+      const newRoomId = await createRoom({
         hostName: user.name,
         avatarId: user.avatarId || 'avatar1',
         isPrivate: isPrivate,

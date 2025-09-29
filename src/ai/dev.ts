@@ -3,5 +3,4 @@ config();
 
 import '@/ai/flows/profanity-filter.ts';
 import '@/ai/flows/youtube-search-flow.ts';
-import '@/ai/flows/room-creation-flow.ts';
 import '@/ai/flows/generate-avatar-flow.ts';

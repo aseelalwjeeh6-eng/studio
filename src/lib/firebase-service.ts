@@ -13,7 +13,8 @@ import {
   writeBatch,
   limit,
 } from 'firebase/firestore';
-import { ref, update, get } from 'firebase/database';
+import { ref, update, get, set } from 'firebase/database';
+import { v4 as uuidv4 } from 'uuid';
 
 
 export interface RoomInvitation {
@@ -306,4 +307,33 @@ export const removeNotification = async (username: string, notificationId: strin
         invitations: newInvitations,
         friendRequests: newFriendRequests
     });
+};
+
+
+// Create a new room
+type CreateRoomInput = {
+    hostName: string;
+    avatarId: string;
+    isPrivate: boolean;
+};
+
+export const createRoom = async ({ hostName, avatarId, isPrivate }: CreateRoomInput): Promise<string> => {
+    const newRoomId = uuidv4();
+    const roomRef = ref(getDatabaseInstance(), `rooms/${newRoomId}`);
+    
+    const roomData = {
+      host: hostName,
+      createdAt: Date.now(),
+      videoUrl: '',
+      seatedMembers: {},
+      members: {},
+      isPrivate: isPrivate,
+      authorizedMembers: isPrivate ? { [hostName]: true } : {},
+      moderators: [],
+      playlist: [],
+    };
+
+    await set(roomRef, roomData);
+
+    return newRoomId;
 };
