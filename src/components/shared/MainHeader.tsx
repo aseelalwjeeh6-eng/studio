@@ -9,30 +9,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import useUserSession from '@/hooks/use-user-session';
+import { useEffect, useState } from 'react';
+import { AppNotification, getNotifications } from '@/lib/firebase-service';
+import { Bell, LogIn, UserPlus } from 'lucide-react';
+
 
 // Inlined SVG components to avoid lucide-react HMR issues
-const Bell = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-  </svg>
-);
-
 const Moon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -116,6 +104,22 @@ export function MainHeader() {
   const { user, setUser } = useUserSession();
   const pathname = usePathname();
   const router = useRouter();
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [hasUnread, setHasUnread] = useState(false);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!user) return;
+      const notifs = await getNotifications(user.name);
+      setNotifications(notifs);
+      setHasUnread(notifs.length > 0);
+    };
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Poll every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   const handleLogout = () => {
     setUser(null);
@@ -127,6 +131,14 @@ export function MainHeader() {
     { href: '/friends', label: 'الأصدقاء' },
     { href: '/profile', label: 'الملف الشخصي' },
   ];
+  
+  const handleNotificationClick = (notification: AppNotification) => {
+    if (notification.type === 'friendRequest') {
+        router.push('/friends');
+    } else if (notification.type === 'roomInvitation' && notification.roomId) {
+        router.push(`/rooms/${notification.roomId}`);
+    }
+  }
 
   return (
     <header className="bg-card/50 backdrop-blur-lg border-b border-accent/20 sticky top-0 z-40">
@@ -184,18 +196,43 @@ export function MainHeader() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative rounded-full"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-accent"></span>
-            </span>
-            <span className="sr-only">Notifications</span>
-          </Button>
+          <DropdownMenu onOpenChange={() => setHasUnread(false)}>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative rounded-full">
+                    <Bell className="h-5 w-5" />
+                    {hasUnread && (
+                    <span className="absolute top-1 right-1 flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-accent"></span>
+                    </span>
+                    )}
+                    <span className="sr-only">Notifications</span>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 bg-card/80 backdrop-blur-lg">
+                <DropdownMenuLabel>الإشعارات</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {notifications.length > 0 ? (
+                    notifications.map((notif, index) => (
+                        <DropdownMenuItem key={index} className="flex justify-between items-center" onSelect={() => handleNotificationClick(notif)}>
+                           <div className="flex items-center">
+                             {notif.type === 'friendRequest' ? <UserPlus className="me-2 text-accent" /> : <LogIn className="me-2 text-accent" />}
+                             <div className='flex flex-col'>
+                                <span className='font-semibold'>{notif.title}</span>
+                                <span className='text-xs text-muted-foreground'>{notif.body}</span>
+                             </div>
+                           </div>
+                           <Button size="sm" variant="ghost">
+                                {notif.type === 'friendRequest' ? "عرض" : "انضمام"}
+                           </Button>
+                        </DropdownMenuItem>
+                    ))
+                ) : (
+                    <p className="p-4 text-center text-sm text-muted-foreground">لا توجد إشعارات جديدة.</p>
+                )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
 
           {user && (
             <div className="text-sm text-muted-foreground hidden md:block">

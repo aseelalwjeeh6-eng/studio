@@ -9,19 +9,21 @@ import Player from './Player';
 import Chat from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
-import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film } from 'lucide-react';
+import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AudioConference } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
 import Seats from './Seats';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '../ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import VideoConference from './VideoConference';
+import { AppUser, getFriends, sendRoomInvitation } from '@/lib/firebase-service';
+
 
 export type Member = { 
   name: string;
@@ -51,43 +53,49 @@ interface YouTubeVideo {
   };
 }
 
-const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwitchToPlayer, videoMode }: { onSearchClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; onSwitchToPlayer: () => void; videoMode: boolean; }) => {
+const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwitchToPlayer, videoMode, onInviteClick }: { onSearchClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; onSwitchToPlayer: () => void; videoMode: boolean; onInviteClick: () => void; }) => {
     const { user } = useUserSession();
     const avatar = PlaceHolderImages.find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id.startsWith('avatar'));
 
     return (
         <header className="flex items-center justify-between p-4 w-full">
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                        <MoreVertical />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-card/80 backdrop-blur-lg">
-                    {videoMode ? (
-                         <DropdownMenuItem onClick={onSwitchToPlayer}>
-                            <Film className="me-2" /> العودة للمشاهدة
+            <div className="flex items-center gap-2">
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                            <MoreVertical />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="bg-card/80 backdrop-blur-lg">
+                        {videoMode ? (
+                            <DropdownMenuItem onClick={onSwitchToPlayer}>
+                                <Film className="me-2" /> العودة للمشاهدة
+                            </DropdownMenuItem>
+                        ) : (
+                            <DropdownMenuItem onClick={onSwitchToVideo}>
+                                <Video className="me-2" /> مكالمة فيديو
+                            </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={onLeaveRoom} className="text-destructive">
+                            <LogOut className="me-2" /> مغادرة الغرفة
                         </DropdownMenuItem>
-                    ) : (
-                        <DropdownMenuItem onClick={onSwitchToVideo}>
-                            <Video className="me-2" /> مكالمة فيديو
-                        </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem onClick={onLeaveRoom} className="text-destructive">
-                        <LogOut className="me-2" /> مغادرة الغرفة
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+                <Button onClick={onInviteClick} variant="secondary">
+                    <Users className="me-2" />
+                    دعوة أصدقاء
+                </Button>
+            </div>
 
             {!videoMode && (
-                <Button onClick={onSearchClick} variant="secondary">
+                <Button onClick={onSearchClick} variant="outline">
                     <Youtube className="me-2" />
                     بحث يوتيوب
                 </Button>
             )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <div className='text-right'>
-                    <p className='font-bold text-foreground'>غرفة الرمسسة</p>
+                    <p className='font-bold text-foreground'>غرفة المشاهدة</p>
                     <p>ID: {roomId.slice(0,10)}...</p>
                 </div>
                 <Avatar>
@@ -106,6 +114,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const [seatedMembers, setSeatedMembers] = useState<SeatedMember[]>([]);
   const [videoUrl, setVideoUrl] = useState('');
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
+  const [hostName, setHostName] = useState('');
   const [isHost, setIsHost] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState('');
@@ -115,6 +124,9 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [friends, setFriends] = useState<AppUser[]>([]);
+  const [invitedFriends, setInvitedFriends] = useState<Set<string>>(new Set());
   
   const { toast } = useToast();
 
@@ -164,6 +176,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       
       const roomData = snapshot.val();
       setIsHost(roomData.host === user.name);
+      setHostName(roomData.host);
 
       goOnline(database);
       const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
@@ -315,13 +328,12 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
     if (isHost) {
       const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
-      get(playerStateRef).then((snapshot) => {
-        const currentState = snapshot.val() || {};
-        const updatedState = { ...currentState, ...newState, timestamp: serverTimestamp() };
-        set(playerStateRef, updatedState);
+      runTransaction(playerStateRef, (currentState) => {
+        return { ...currentState, ...newState, timestamp: serverTimestamp() };
       });
     }
   };
+  
 
   const handleKickUser = (userNameToKick: string) => {
     if (!isHost || !userNameToKick) return;
@@ -336,6 +348,28 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     }
     toast({ title: `تم طرد ${userNameToKick}` });
   };
+  
+  const handleOpenInviteDialog = async () => {
+    if (!user) return;
+    const friendsData = await getFriends(user.name);
+    setFriends(friendsData);
+    setIsInviteOpen(true);
+  };
+
+  const handleSendInvitation = async (recipientName: string) => {
+    if (!user) return;
+    try {
+        await sendRoomInvitation(user.name, recipientName, roomId, `غرفة ${hostName}`);
+        setInvitedFriends(prev => new Set(prev).add(recipientName));
+        toast({ title: "تم إرسال الدعوة", description: `تمت دعوة ${recipientName} إلى الغرفة.` });
+    } catch (error: any) {
+        toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const getAvatar = (user: AppUser | Member | SeatedMember) => {
+    return PlaceHolderImages.find(p => p.id === user.avatarId) ?? PlaceHolderImages[0];
+  }
 
 
   if (isLoading || !user) {
@@ -362,6 +396,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                 onSwitchToVideo={handleSwitchToVideo}
                 onSwitchToPlayer={handleSwitchToPlayer}
                 videoMode={videoMode}
+                onInviteClick={handleOpenInviteDialog}
             />
             <main className="w-full max-w-4xl mx-auto flex-grow flex flex-col gap-4 px-4">
                 {videoMode ? (
@@ -396,6 +431,41 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                 <AudioConference />
             </div>
         </div>
+
+        <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>دعوة أصدقاء</DialogTitle>
+                    <DialogDescription>
+                        أرسل دعوات لأصدقائك للانضمام إليك في غرفة المشاهدة.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 max-h-80 overflow-y-auto mt-4">
+                    {friends.length > 0 ? friends.map((friend) => (
+                        <div key={friend.name} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30">
+                            <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10">
+                                    <AvatarImage src={getAvatar(friend)?.imageUrl} alt={friend.name} />
+                                    <AvatarFallback>{friend.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span className="font-semibold">{friend.name}</span>
+                            </div>
+                            <Button 
+                                size="sm" 
+                                onClick={() => handleSendInvitation(friend.name)} 
+                                disabled={invitedFriends.has(friend.name)}
+                            >
+                                {invitedFriends.has(friend.name) ? "تمت الدعوة" : "دعوة"}
+                                {!invitedFriends.has(friend.name) && <Send className="ms-2 h-4 w-4"/>}
+                            </Button>
+                        </div>
+                    )) : (
+                        <p className="text-center text-muted-foreground py-4">ليس لديك أصدقاء لدعوتهم بعد.</p>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+
 
         <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
             <DialogContent className="max-w-none w-screen h-screen m-0 p-0 !rounded-none flex flex-col bg-background">
@@ -483,5 +553,3 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 };
 
 export default RoomClient;
-
-    

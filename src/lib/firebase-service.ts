@@ -14,12 +14,28 @@ import {
   limit,
 } from 'firebase/firestore';
 
+export interface RoomInvitation {
+    roomId: string;
+    roomName: string;
+    senderName: string;
+}
+
 export interface AppUser {
     name: string;
     avatarId?: string;
     friends?: string[];
     friendRequests?: string[];
+    invitations?: RoomInvitation[];
 }
+
+export type AppNotification = {
+    type: 'friendRequest' | 'roomInvitation';
+    title: string;
+    body: string;
+    senderName: string;
+    roomId?: string;
+}
+
 
 // Collections
 const usersCol = collection(firestore, 'users');
@@ -39,7 +55,8 @@ export const upsertUser = async (user: { name: string, avatarId?: string }) => {
             name: user.name, 
             avatarId: user.avatarId || 'avatar1',
             friends: [],
-            friendRequests: []
+            friendRequests: [],
+            invitations: []
         });
     } else {
         // Update avatar if it has changed
@@ -174,4 +191,64 @@ export const removeFriend = async (currentUsername: string, friendNameToRemove: 
     });
 
     await batch.commit();
+};
+
+// Send a room invitation
+export const sendRoomInvitation = async (senderName: string, recipientName: string, roomId: string, roomName: string) => {
+    const { ref: recipientRef, data: recipientData } = await getUserDoc(recipientName);
+
+    if (!recipientData) {
+        throw new Error('المستخدم الذي تحاول دعوته غير موجود.');
+    }
+
+    const newInvitation: RoomInvitation = {
+        roomId,
+        roomName,
+        senderName,
+    };
+    
+    // Avoid duplicate invitations for the same room
+    const hasExistingInvitation = recipientData.invitations?.some(inv => inv.roomId === roomId);
+    if (hasExistingInvitation) {
+        throw new Error(`لقد قمت بالفعل بدعوة ${recipientName} إلى هذه الغرفة.`);
+    }
+
+    await updateDoc(recipientRef, {
+        invitations: arrayUnion(newInvitation)
+    });
+};
+
+// Get all notifications for a user
+export const getNotifications = async (username: string): Promise<AppNotification[]> => {
+    const { data } = await getUserDoc(username);
+    if (!data) return [];
+
+    const notifications: AppNotification[] = [];
+
+    // Friend requests
+    if (data.friendRequests) {
+        for (const senderName of data.friendRequests) {
+            notifications.push({
+                type: 'friendRequest',
+                title: 'طلب صداقة جديد',
+                body: `${senderName} يريد أن يصبح صديقك.`,
+                senderName: senderName,
+            });
+        }
+    }
+
+    // Room invitations
+    if (data.invitations) {
+        for (const inv of data.invitations) {
+            notifications.push({
+                type: 'roomInvitation',
+                title: `دعوة إلى ${inv.roomName}`,
+                body: `${inv.senderName} يدعوك للانضمام.`,
+                senderName: inv.senderName,
+                roomId: inv.roomId,
+            });
+        }
+    }
+
+    return notifications;
 };
