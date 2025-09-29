@@ -24,11 +24,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 export type Member = { 
   name: string;
+  avatarId?: string;
   joinedAt: object;
 };
 
 export type SeatedMember = {
     name: string;
+    avatarId?: string;
     seatId: number;
 }
 
@@ -50,7 +52,7 @@ interface YouTubeVideo {
 
 const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo }: { onSearchClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; }) => {
     const { user } = useUserSession();
-    const avatar = PlaceHolderImages.find(p => p.id.startsWith('avatar')); // Simple selection for now
+    const avatar = PlaceHolderImages.find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id.startsWith('avatar'));
 
     return (
         <header className="flex items-center justify-between p-4 w-full">
@@ -148,7 +150,7 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
 
       goOnline(database);
       const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
-      set(userRef, { name: user.name, joinedAt: serverTimestamp() });
+      set(userRef, { name: user.name, avatarId: user.avatarId, joinedAt: serverTimestamp() });
       onDisconnect(userRef).remove();
       
       const userSeat = seatedMembers.find(m => m.name === user.name);
@@ -171,8 +173,8 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     const onMembersValue = onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : []));
     const onSeatedMembersValue = onValue(seatedMembersRef, (snapshot) => {
         const seatedData = snapshot.val();
-        const seatedArray = seatedData ? Object.entries(seatedData).map(([seatId, name]) => ({ seatId: parseInt(seatId), name: name as string })) : [];
-        setSeatedMembers(seatedArray);
+        const seatedArray = seatedData ? Object.values(seatedData) : [];
+        setSeatedMembers(seatedArray as SeatedMember[]);
     });
     const onVideoUrlValue = onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || ''));
     const onPlayerStateValue = onValue(playerStateRef, (snapshot) => setPlayerState(snapshot.val()));
@@ -217,7 +219,7 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
                  const oldSeatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
                  set(oldSeatRef, null);
               }
-              return user.name;
+              return { name: user.name, avatarId: user.avatarId, seatId: seatId };
           }
           return; 
       }).catch((error) => {

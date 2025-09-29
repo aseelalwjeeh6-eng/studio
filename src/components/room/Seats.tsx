@@ -42,7 +42,7 @@ const Seat = ({
     const isMuted = participant ? participant.isMicrophoneMuted : true;
     const isSpeaking = participant ? participant.isSpeaking : false;
     
-    const avatar = PlaceHolderImages.find(p => p.id.startsWith('avatar'));
+    const avatar = PlaceHolderImages.find(p => p.id === seatedMember?.avatarId) ?? PlaceHolderImages.find(p => p.id.startsWith('avatar'));
 
     const toggleOwnMute = () => {
         if (isCurrentUserSeatedHere && localParticipant) {
