@@ -15,9 +15,10 @@ import {
 import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import useUserSession from '@/hooks/use-user-session';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { AppNotification, getNotifications, removeNotification } from '@/lib/firebase-service';
 import { Bell, LogIn, UserPlus } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 
 // Inlined SVG components to avoid lucide-react HMR issues
@@ -106,20 +107,48 @@ export function MainHeader() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [hasUnread, setHasUnread] = useState(false);
+  const { toast } = useToast();
+  const displayedToasts = useRef(new Set());
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (isInitialFetch = false) => {
     if (!user) return;
-    const notifs = await getNotifications(user.name);
-    setNotifications(notifs.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)));
-    setHasUnread(notifs.some(n => !n.read));
+    const oldNotifications = isInitialFetch ? [] : notifications;
+    const newNotifications = await getNotifications(user.name);
+    
+    setNotifications(newNotifications.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)));
+    setHasUnread(newNotifications.some(n => !n.read));
+
+    if (!isInitialFetch) {
+      const trulyNew = newNotifications.filter(
+        (newNotif) => !oldNotifications.some((oldNotif) => oldNotif.id === newNotif.id) && !displayedToasts.current.has(newNotif.id)
+      );
+
+      trulyNew.forEach((notif) => {
+        displayedToasts.current.add(notif.id);
+        toast({
+          title: notif.title,
+          description: notif.body,
+          action: (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleNotificationClick(notif)}
+            >
+              {notif.type === 'roomInvitation' ? 'انضمام' : 'عرض'}
+            </Button>
+          ),
+        });
+      });
+    }
   };
 
 
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 15000); // Poll every 15 seconds
-
-    return () => clearInterval(interval);
+    if (user) {
+        fetchNotifications(true);
+        const interval = setInterval(() => fetchNotifications(false), 5000); // Poll every 5 seconds
+        return () => clearInterval(interval);
+    }
   }, [user]);
 
   const handleLogout = () => {
@@ -134,17 +163,23 @@ export function MainHeader() {
   ];
   
   const handleNotificationClick = async (notification: AppNotification) => {
-    if (!user) return;
+    if (!user || !notification.id) return;
     
-    if (notification.type === 'friendRequest') {
-        router.push('/friends');
-    } else if (notification.type === 'roomInvitation' && notification.roomId) {
-        router.push(`/rooms/${notification.roomId}`);
-    }
+    try {
+        if (notification.type === 'friendRequest') {
+            router.push('/friends');
+        } else if (notification.type === 'roomInvitation' && notification.roomId) {
+            router.push(`/rooms/${notification.roomId}`);
+        }
 
-    if(notification.id) {
         await removeNotification(user.name, notification.id);
-        fetchNotifications();
+        
+        // Optimistically update UI
+        setNotifications(prev => prev.filter(n => n.id !== notification.id));
+        displayedToasts.current.delete(notification.id);
+
+    } catch (error) {
+        console.error("Failed to handle notification click:", error);
     }
   }
 
@@ -229,7 +264,7 @@ export function MainHeader() {
                 <DropdownMenuSeparator />
                 {notifications.length > 0 ? (
                     notifications.map((notif) => (
-                        <DropdownMenuItem key={notif.id} className="flex justify-between items-center cursor-pointer" onSelect={() => handleNotificationClick(notif)}>
+                        <DropdownMenuItem key={notif.id} className="flex justify-between items-center cursor-pointer" onSelect={(e) => { e.preventDefault(); handleNotificationClick(notif); }}>
                            <div className="flex items-center">
                              {notif.type === 'friendRequest' ? <UserPlus className="me-2 text-accent" /> : <LogIn className="me-2 text-accent" />}
                              <div className='flex flex-col'>
