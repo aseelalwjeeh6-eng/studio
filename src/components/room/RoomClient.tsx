@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { database } from '@/lib/firebase';
 import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction } from 'firebase/database';
@@ -30,6 +30,12 @@ export type Member = {
 export type SeatedMember = {
     name: string;
     seatId: number;
+}
+
+export type PlayerState = {
+    isPlaying: boolean;
+    seekTime: number;
+    timestamp: number;
 }
 
 interface YouTubeVideo {
@@ -88,6 +94,7 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [seatedMembers, setSeatedMembers] = useState<SeatedMember[]>([]);
   const [videoUrl, setVideoUrl] = useState('');
+  const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const [isHost, setIsHost] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState('');
@@ -114,25 +121,21 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     router.push('/lobby');
   };
   
-  // Effect for handling user session and basic loading state
   useEffect(() => {
     if (isUserLoaded && !user) {
       router.push('/');
     }
     if (isUserLoaded && user) {
-        // We are ready to start fetching room data
         setIsLoading(false);
     }
   }, [isUserLoaded, user, router]);
 
 
-  // Effect for fetching room data and setting up presence
   useEffect(() => {
     if (!user || isLoading) return;
 
     const roomRef = ref(database, `rooms/${roomId}`);
     
-    // 1. Check if room exists
     get(roomRef).then((snapshot) => {
       if (!snapshot.exists()) {
         toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
@@ -141,33 +144,29 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
       }
       
       const roomData = snapshot.val();
-      const hostName = roomData.host;
-      setIsHost(hostName === user.name);
+      setIsHost(roomData.host === user.name);
 
-      // 2. Setup presence after confirming room exists
       goOnline(database);
       const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
-      const memberData = { name: user.name, joinedAt: serverTimestamp() };
-      set(userRef, memberData);
+      set(userRef, { name: user.name, joinedAt: serverTimestamp() });
       onDisconnect(userRef).remove();
-       // When disconnecting, also remove user from any seat
+      
       const userSeat = seatedMembers.find(m => m.name === user.name);
       if(userSeat) {
           const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
           onDisconnect(seatRef).remove();
       }
 
-      // 3. Fetch LiveKit token
       fetch(`/api/livekit?room=${roomId}&username=${user.name}`)
         .then(resp => resp.json())
         .then(data => setToken(data.token))
         .catch(e => console.error("Failed to fetch LiveKit token", e));
     });
 
-    // 4. Subscribe to room data changes
     const membersRef = ref(database, `rooms/${roomId}/members`);
     const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
     const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
+    const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
     
     const onMembersValue = onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : []));
     const onSeatedMembersValue = onValue(seatedMembersRef, (snapshot) => {
@@ -176,14 +175,15 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
         setSeatedMembers(seatedArray);
     });
     const onVideoUrlValue = onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || ''));
+    const onPlayerStateValue = onValue(playerStateRef, (snapshot) => setPlayerState(snapshot.val()));
+
 
     return () => {
-      // Detach listeners
       onValue(membersRef, () => {});
       onValue(seatedMembersRef, () => {});
       onValue(videoUrlRef, () => {});
+      onValue(playerStateRef, () => {});
       
-      // Clean up presence on unmount
       if (user) {
         const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
         const userSeat = seatedMembers.find(m => m.name === user.name);
@@ -219,7 +219,7 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
               }
               return user.name;
           }
-          return; // Abort transaction if seat is taken
+          return; 
       }).catch((error) => {
           console.error("Transaction failed: ", error);
           toast({ title: "المقعد محجوز بالفعل", variant: "destructive" });
@@ -250,9 +250,9 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
       setSearchError(null);
       setSearchResults([]);
       try {
-      const results = await searchYoutube({ query: searchQuery });
-      setSearchResults(results.items);
-      updateSearchHistory(searchQuery);
+        const results = await searchYoutube({ query: searchQuery });
+        setSearchResults(results.items);
+        updateSearchHistory(searchQuery);
       } catch (error) {
           console.error("YouTube search failed:", error);
           if (error instanceof Error && error.message.includes('YOUTUBE_API_KEY is not set')) {
@@ -267,8 +267,8 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
   
   const handleSelectVideo = (videoId: string) => {
       if (isHost) {
-      onSetVideo(`https://www.youtube.com/watch?v=${videoId}`);
-      setIsSearchOpen(false);
+        onSetVideo(`https://www.youtube.com/watch?v=${videoId}`);
+        setIsSearchOpen(false);
       }
   };
 
@@ -281,17 +281,29 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
     if (isHost && url) {
       const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
       set(videoUrlRef, url);
+      // Reset player state for new video
+      const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
+      set(playerStateRef, { isPlaying: true, seekTime: 0, timestamp: serverTimestamp() });
+    }
+  };
+  
+  const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
+    if (isHost) {
+      const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
+      // Use runTransaction or merge for updating partial state if needed,
+      // for simplicity, we're setting the whole object.
+      // Make sure to merge with existing state to not overwrite parts.
+      const updatedState = { ...playerState, ...newState };
+      set(playerStateRef, updatedState);
     }
   };
 
   const handleKickUser = (userNameToKick: string) => {
     if (!isHost || !userNameToKick) return;
 
-    // Remove from members
     const memberRef = ref(database, `rooms/${roomId}/members/${userNameToKick}`);
     set(memberRef, null);
 
-    // Remove from seated members if they are seated
     const userSeat = seatedMembers.find(m => m.name === userNameToKick);
     if (userSeat) {
         const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
@@ -324,7 +336,14 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
                 onSwitchToVideo={() => toast({ title: "ميزة الفيديو سيتم إضافتها قريباً!"})}
             />
             <main className="w-full max-w-4xl mx-auto flex-grow flex flex-col gap-4 px-4">
-                <Player videoUrl={videoUrl} onSetVideo={onSetVideo} isHost={isHost} onSearchClick={() => setIsSearchOpen(true)} />
+                <Player 
+                    videoUrl={videoUrl} 
+                    onSetVideo={onSetVideo} 
+                    isHost={isHost} 
+                    onSearchClick={() => setIsSearchOpen(true)}
+                    playerState={playerState}
+                    onPlayerStateChange={handlePlayerStateChange}
+                />
                 <Seats 
                     seatedMembers={seatedMembers}
                     onTakeSeat={handleTakeSeat}
