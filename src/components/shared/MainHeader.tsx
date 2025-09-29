@@ -10,10 +10,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Bell, Moon, Sun, Heart, Power } from 'lucide-react';
 import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import useUserSession from '@/hooks/use-user-session';
+import Bell from 'lucide-react/dist/esm/icons/bell';
+import Moon from 'lucide-react/dist/esm/icons/moon';
+import Sun from 'lucide-react/dist/esm/icons/sun';
+import Heart from 'lucide-react/dist/esm/icons/heart';
+import Power from 'lucide-react/dist/esm/icons/power';
+
 
 export function MainHeader() {
   const { theme, setTheme } = useTheme();
