@@ -71,14 +71,17 @@ export default function LobbyPage() {
     router.push(`/rooms/${newRoomId}`);
 
     const roomRef = ref(database, `rooms/${newRoomId}`);
-    set(roomRef, {
+    const roomData = {
       host: user.name,
       createdAt: Date.now(),
       videoUrl: '',
       seatedMembers: {},
       members: {},
       isPrivate: isPrivate,
-    }).catch(error => {
+      authorizedMembers: isPrivate ? { [user.name]: true } : {},
+    };
+
+    set(roomRef, roomData).catch(error => {
       console.error("Failed to create room in background:", error);
     });
   };

@@ -177,6 +177,18 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         }
         
         const roomData = snapshot.val();
+        
+        // Privacy check
+        if (roomData.isPrivate) {
+            const isHost = roomData.host === user.name;
+            const isAuthorized = roomData.authorizedMembers && roomData.authorizedMembers[user.name];
+            if (!isHost && !isAuthorized) {
+                toast({ title: 'غرفة خاصة', description: 'ليس لديك إذن لدخول هذه الغرفة.', variant: 'destructive' });
+                router.push('/lobby');
+                return;
+            }
+        }
+
         setIsHost(roomData.host === user.name);
         setHostName(roomData.host);
 

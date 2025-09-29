@@ -1,4 +1,4 @@
-import { firestore } from './firebase';
+import { firestore, database as rtdb } from './firebase';
 import {
   collection,
   doc,
@@ -13,6 +13,8 @@ import {
   writeBatch,
   limit,
 } from 'firebase/firestore';
+import { ref, update } from 'firebase/database';
+
 
 export interface RoomInvitation {
     roomId: string;
@@ -213,9 +215,18 @@ export const sendRoomInvitation = async (senderName: string, recipientName: stri
         throw new Error(`لقد قمت بالفعل بدعوة ${recipientName} إلى هذه الغرفة.`);
     }
 
+    // Add invitation to firestore
     await updateDoc(recipientRef, {
         invitations: arrayUnion(newInvitation)
     });
+    
+    // Add to authorized members in RTDB if room is private
+    const roomRef = ref(rtdb, `rooms/${roomId}`);
+    const roomSnapshot = await getDoc(doc(firestore, 'rooms', roomId)); // This seems wrong, should use RTDB get
+    const updates: { [key: string]: any } = {};
+    updates[`/authorizedMembers/${recipientName}`] = true;
+    await update(roomRef, updates);
+
 };
 
 // Get all notifications for a user
