@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import useUserSession from '@/hooks/use-user-session';
 import { Loader2 } from 'lucide-react';
+import { upsertUser } from '@/lib/firebase-service';
 
 export default function LoginPage() {
   const [name, setName] = useState('');
@@ -20,10 +21,12 @@ export default function LoginPage() {
     }
   }, [isLoaded, user, router]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      setUser({ name: name.trim() });
+      const newUser = { name: name.trim() };
+      setUser(newUser);
+      await upsertUser(newUser);
       router.push('/lobby');
     }
   };
