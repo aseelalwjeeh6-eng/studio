@@ -2,7 +2,7 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, Database } from "firebase/database";
 import { getFirestore, Firestore } from "firebase/firestore";
-import { getAnalytics, Analytics } from "firebase/analytics";
+import { getAnalytics, Analytics, isSupported } from "firebase/analytics";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -16,27 +16,18 @@ const firebaseConfig = {
   "measurementId": "G-5G3W9K5153"
 };
 
-let app: FirebaseApp;
-let database: Database;
-let firestore: Firestore;
+
+const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const database: Database = getDatabase(app);
+const firestore: Firestore = getFirestore(app);
 let analytics: Analytics | undefined;
 
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApp();
-}
-
-database = getDatabase(app);
-firestore = getFirestore(app);
-
-// Initialize Analytics if running in the browser
 if (typeof window !== 'undefined') {
-  try {
-    analytics = getAnalytics(app);
-  } catch (error) {
-    console.error("Failed to initialize Firebase Analytics", error);
-  }
+  isSupported().then((supported) => {
+    if (supported) {
+      analytics = getAnalytics(app);
+    }
+  });
 }
 
 export { app, database, firestore, analytics };
