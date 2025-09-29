@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, UserPlus, Users, Search, Mail, UserCheck, UserX, ShieldX } from 'lucide-react';
+import { Loader2, UserPlus, Users, Search, Mail, UserCheck, UserX } from 'lucide-react';
 import { searchUsers, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, getFriendRequests, getFriends, removeFriend, AppUser } from '@/lib/firebase-service';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useToast } from '@/hooks/use-toast';
@@ -56,7 +56,9 @@ export default function FriendsPage() {
   };
 
   useEffect(() => {
-    fetchFriendsAndRequests();
+    if (user) {
+      fetchFriendsAndRequests();
+    }
   }, [user]);
 
   const handleSearch = async (e: React.FormEvent) => {
