@@ -21,24 +21,56 @@ let firestoreInstance: Firestore;
 let databaseInstance: Database;
 let analyticsInstance: Analytics | undefined;
 
-
-if (getApps().length === 0) {
-    app = initializeApp(firebaseConfig);
-} else {
-    app = getApp();
-}
-
-firestoreInstance = getFirestore(app);
-databaseInstance = getDatabase(app);
-
-if (typeof window !== 'undefined') {
-    isSupported().then((supported) => {
-        if (supported) {
-            analyticsInstance = getAnalytics(app);
+if (typeof window !== "undefined") {
+    if (!getApps().length) {
+        app = initializeApp(firebaseConfig);
+        firestoreInstance = getFirestore(app);
+        databaseInstance = getDatabase(app);
+        isSupported().then((supported) => {
+            if (supported) {
+                analyticsInstance = getAnalytics(app);
+            }
+        });
+    } else {
+        app = getApp();
+        firestoreInstance = getFirestore(app);
+        databaseInstance = getDatabase(app);
+        if (analyticsInstance === undefined) {
+             isSupported().then((supported) => {
+                if (supported) {
+                    analyticsInstance = getAnalytics(app);
+                }
+            });
         }
-    });
+    }
 }
 
-export const firestore = () => firestoreInstance;
-export const database = () => databaseInstance;
-export const analytics = () => analyticsInstance;
+export const firestore = () => {
+    if (!firestoreInstance) {
+        app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+        firestoreInstance = getFirestore(app);
+    }
+    return firestoreInstance;
+};
+
+export const database = () => {
+    if (!databaseInstance) {
+        app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+        databaseInstance = getDatabase(app);
+    }
+    return databaseInstance;
+};
+
+export const analytics = () => {
+    if (!analyticsInstance) {
+        if (typeof window !== "undefined") {
+             isSupported().then(supported => {
+                if(supported) {
+                    app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+                    analyticsInstance = getAnalytics(app);
+                }
+             })
+        }
+    }
+    return analyticsInstance;
+};
