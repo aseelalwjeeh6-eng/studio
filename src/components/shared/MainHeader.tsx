@@ -124,6 +124,7 @@ export function MainHeader() {
 
   const navLinks = [
     { href: '/lobby', label: 'الغرف' },
+    { href: '/friends', label: 'الأصدقاء' },
     { href: '/profile', label: 'الملف الشخصي' },
   ];
 
