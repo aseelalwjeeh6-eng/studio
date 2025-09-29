@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { User } from '@/app/providers';
-import { Trash2, Send } from 'lucide-react';
+import { Trash2, Send, Mic, MicOff } from 'lucide-react';
 import { filterProfanity } from '@/ai/flows/profanity-filter';
 import {
   AlertDialog,
@@ -27,6 +27,9 @@ interface ChatProps {
   roomId: string;
   user: User;
   isHost: boolean;
+  isSeated: boolean;
+  isMuted: boolean;
+  onToggleMute: () => void;
 }
 
 interface Message {
@@ -35,11 +38,10 @@ interface Message {
   timestamp: number;
 }
 
-const Chat = ({ roomId, user, isHost }: ChatProps) => {
+const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,12 +57,14 @@ const Chat = ({ roomId, user, isHost }: ChatProps) => {
   useEffect(() => {
     const viewport = viewportRef.current;
     if (viewport) {
-      const isScrolledToBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 1;
+      const isScrolledToBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
       
       if(isScrolledToBottom) {
         setTimeout(() => {
-            viewport.scrollTop = viewport.scrollHeight;
-        }, 0);
+            if (viewportRef.current) {
+                viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+            }
+        }, 100);
       }
     }
   }, [messages]);
@@ -123,7 +127,7 @@ const Chat = ({ roomId, user, isHost }: ChatProps) => {
         )}
       </CardHeader>
       <CardContent className="flex-grow overflow-hidden p-0">
-        <ScrollArea className="h-full" ref={scrollAreaRef} viewportRef={viewportRef}>
+        <ScrollArea className="h-full" viewportRef={viewportRef}>
            <div className="p-4 space-y-4">
             {messages.length > 0 ? messages.map((msg, index) => (
               <div key={index} className="flex flex-col">
@@ -140,6 +144,11 @@ const Chat = ({ roomId, user, isHost }: ChatProps) => {
       </CardContent>
       <CardFooter className="p-4 border-t">
         <form onSubmit={handleSendMessage} className="flex w-full items-center gap-2">
+           {isSeated && (
+            <Button type="button" size="icon" variant="ghost" onClick={onToggleMute}>
+              {isMuted ? <MicOff className="w-5 h-5 text-destructive" /> : <Mic className="w-5 h-5 text-accent" />}
+            </Button>
+          )}
           <Input
             type="text"
             placeholder="اكتب رسالتك..."
@@ -148,7 +157,7 @@ const Chat = ({ roomId, user, isHost }: ChatProps) => {
             className="bg-input border-border focus:ring-accent"
             disabled={isSending}
           />
-          <Button type="submit" size="icon" disabled={isSending}>
+          <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}>
             <Send className="h-4 w-4" />
           </Button>
         </form>

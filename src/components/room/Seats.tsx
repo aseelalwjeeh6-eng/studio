@@ -68,13 +68,6 @@ const Seat = ({
 
     const canKick = (isHost || isCurrentUserModerator) && seatedMember && seatedMember.name !== currentUser.name && (!moderators.includes(seatedMember.name) || isHost);
     
-    const toggleOwnMute = () => {
-        if (isCurrentUserSeatedHere && localParticipant) {
-            const isEnabled = localParticipant.isMicrophoneEnabled;
-            localParticipant.setMicrophoneEnabled(!isEnabled);
-        }
-    };
-    
     const handleRemoteMute = () => {
         if (!participant || !room) return;
         if (isHost || (isCurrentUserModerator && !isMemberModerator)) {
@@ -151,14 +144,6 @@ const Seat = ({
             )}
         </DropdownMenuContent>
     );
-
-    const userControls = isCurrentUserSeatedHere && localParticipant && (
-         <div className="absolute -bottom-2 -right-2 z-10">
-             <Button size="icon" onClick={toggleOwnMute} className="w-8 h-8 rounded-full bg-secondary hover:bg-secondary/80">
-                {localParticipant.isMicrophoneMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-accent" />}
-            </Button>
-        </div>
-    );
     
     const canTakeSeat = !isOccupied && !isCurrentUserSeated;
 
@@ -182,8 +167,6 @@ const Seat = ({
                         {hostControls}
                         {moderatorControls}
                     </DropdownMenu>
-
-                    {userControls}
                 </div>
             )
         }

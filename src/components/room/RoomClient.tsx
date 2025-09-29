@@ -11,7 +11,7 @@ import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
 import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, ListPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { AudioConference, useLiveKitRoom } from '@livekit/components-react';
+import { AudioConference, useLiveKitRoom, useLocalParticipant } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
 import Seats from './Seats';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
@@ -134,6 +134,8 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   
   const { toast } = useToast();
   const { room } = useLiveKitRoom();
+  const { localParticipant } = useLocalParticipant();
+
 
   const isHost = user?.name === hostName;
   const isModerator = user ? moderators.includes(user.name) : false;
@@ -148,6 +150,12 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     if (!user) return false;
     return seatedMembers.some(m => m.name === user.name);
   }, [seatedMembers, user]);
+  
+  const isMuted = useMemo(() => {
+      if (!localParticipant) return true;
+      return localParticipant.isMicrophoneMuted;
+  }, [localParticipant, localParticipant?.isMicrophoneMuted]);
+
 
   const handleLeaveRoom = () => {
     router.push('/lobby');
@@ -318,6 +326,13 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       }
   };
 
+  const handleToggleMute = () => {
+    if (isSeated && localParticipant) {
+        const isEnabled = localParticipant.isMicrophoneEnabled;
+        localParticipant.setMicrophoneEnabled(!isEnabled);
+    }
+  };
+
   const updateSearchHistory = (query: string) => {
       if(typeof window === 'undefined' || !query) return;
       const newHistory = [query, ...searchHistory.filter(h => h.toLowerCase() !== query.toLowerCase())].slice(0, 10);
@@ -380,7 +395,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
 
   const onSetVideo = useCallback((url: string) => {
-    if (canControl && url) {
+    if (canControl) {
       const db = database();
       const videoUrlRef = ref(db, `rooms/${roomId}/videoUrl`);
       set(videoUrlRef, url);
@@ -568,7 +583,14 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                             <ViewerInfo members={viewers} />
                         </div>
                         <div className="min-h-0">
-                           <Chat roomId={roomId} user={user} isHost={isHost} />
+                           <Chat 
+                                roomId={roomId} 
+                                user={user} 
+                                isHost={isHost}
+                                isSeated={isSeated}
+                                isMuted={isMuted}
+                                onToggleMute={handleToggleMute}
+                            />
                         </div>
                     </div>
                 )}
