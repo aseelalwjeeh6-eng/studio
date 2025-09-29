@@ -147,8 +147,15 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
       // 2. Setup presence after confirming room exists
       goOnline(database);
       const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
-      set(userRef, { name: user.name, joinedAt: serverTimestamp() });
+      const memberData = { name: user.name, joinedAt: serverTimestamp() };
+      set(userRef, memberData);
       onDisconnect(userRef).remove();
+       // When disconnecting, also remove user from any seat
+      const userSeat = seatedMembers.find(m => m.name === user.name);
+      if(userSeat) {
+          const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
+          onDisconnect(seatRef).remove();
+      }
 
       // 3. Fetch LiveKit token
       fetch(`/api/livekit?room=${roomId}&username=${user.name}`)

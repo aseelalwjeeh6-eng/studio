@@ -85,6 +85,9 @@ const Seat = ({
             </Button>
         </div>
     );
+    
+    const isSeatDisabled = isOccupied && !isCurrentUserSeatedHere;
+
 
     const seatContent = () => {
         if (isOccupied) {
@@ -106,7 +109,11 @@ const Seat = ({
             )
         }
         return (
-            <button onClick={() => onTakeSeat(seatId)} className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center border-2 border-dashed border-border hover:border-accent transition-colors">
+            <button 
+                onClick={() => onTakeSeat(seatId)} 
+                className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center border-2 border-dashed border-border hover:border-accent transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isSeatDisabled}
+            >
                 <Armchair className="w-10 h-10 text-muted-foreground" />
             </button>
         )
