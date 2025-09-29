@@ -21,7 +21,7 @@ interface RoomData {
 
 export default function LobbyPage() {
   const [roomId, setRoomId] = useState('');
-  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [creatingRoomType, setCreatingRoomType] = useState<null | 'public' | 'private'>(null);
   const [activeRooms, setActiveRooms] = useState<RoomData[]>([]);
   const router = useRouter();
   const { isLoaded, user } = useUserSession();
@@ -63,13 +63,13 @@ export default function LobbyPage() {
     return () => off(roomsRef, 'value', listener);
   }, []);
 
-  const handleCreateRoom = (isPrivate: boolean) => {
-    if (!user || isCreatingRoom) return;
-    setIsCreatingRoom(true);
-    const newRoomId = uuidv4();
+  const handleCreateRoom = async (isPrivate: boolean) => {
+    if (!user || creatingRoomType) return;
     
-    router.push(`/rooms/${newRoomId}`);
+    const roomType = isPrivate ? 'private' : 'public';
+    setCreatingRoomType(roomType);
 
+    const newRoomId = uuidv4();
     const roomRef = ref(database(), `rooms/${newRoomId}`);
     const roomData = {
       host: user.name,
@@ -81,9 +81,13 @@ export default function LobbyPage() {
       authorizedMembers: isPrivate ? { [user.name]: true } : {},
     };
 
-    set(roomRef, roomData).catch(error => {
-      console.error("Failed to create room in background:", error);
-    });
+    try {
+      await set(roomRef, roomData);
+      router.push(`/rooms/${newRoomId}`);
+    } catch (error) {
+      console.error("Failed to create room:", error);
+      setCreatingRoomType(null);
+    }
   };
 
   const handleJoinRoom = (e: React.FormEvent) => {
@@ -127,16 +131,16 @@ export default function LobbyPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="grid sm:grid-cols-2 gap-4">
-                        <Button onClick={() => handleCreateRoom(false)} className="h-12 text-lg bg-primary text-primary-foreground hover:bg-primary/90" disabled={isCreatingRoom}>
-                        {isCreatingRoom ? (
+                        <Button onClick={() => handleCreateRoom(false)} className="h-12 text-lg bg-primary text-primary-foreground hover:bg-primary/90" disabled={!!creatingRoomType}>
+                        {creatingRoomType === 'public' ? (
                             <Loader2 className="me-2 h-5 w-5 animate-spin" />
                         ) : (
                             <Globe className="me-2 h-5 w-5" />
                         )}
                          غرفة عامة
                         </Button>
-                        <Button onClick={() => handleCreateRoom(true)} className="h-12 text-lg bg-accent text-accent-foreground hover:bg-accent/90" disabled={isCreatingRoom}>
-                        {isCreatingRoom ? (
+                        <Button onClick={() => handleCreateRoom(true)} className="h-12 text-lg bg-accent text-accent-foreground hover:bg-accent/90" disabled={!!creatingRoomType}>
+                        {creatingRoomType === 'private' ? (
                             <Loader2 className="me-2 h-5 w-5 animate-spin" />
                         ) : (
                             <Lock className="me-2 h-5 w-5" />
