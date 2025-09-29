@@ -17,43 +17,28 @@ const firebaseConfig = {
 };
 
 let app: FirebaseApp;
-if (!getApps().length) {
-  app = initializeApp(firebaseConfig);
+let firestoreInstance: Firestore;
+let databaseInstance: Database;
+let analyticsInstance: Analytics | undefined;
+
+
+if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
 } else {
-  app = getApp();
+    app = getApp();
 }
 
-let firestore: Firestore;
-let database: Database;
-let analytics: Analytics | undefined;
+firestoreInstance = getFirestore(app);
+databaseInstance = getDatabase(app);
 
-function getFirestoreInstance() {
-    if (!firestore) {
-        firestore = getFirestore(app);
-    }
-    return firestore;
+if (typeof window !== 'undefined') {
+    isSupported().then((supported) => {
+        if (supported) {
+            analyticsInstance = getAnalytics(app);
+        }
+    });
 }
 
-function getDatabaseInstance() {
-    if (!database) {
-        database = getDatabase(app);
-    }
-    return database;
-}
-
-function getAnalyticsInstance() {
-    if (typeof window !== 'undefined' && !analytics) {
-        isSupported().then((supported) => {
-            if (supported) {
-                analytics = getAnalytics(app);
-            }
-        });
-    }
-    return analytics;
-}
-
-// Call this once to initialize analytics if needed
-getAnalyticsInstance();
-
-
-export { app, getFirestoreInstance as firestore, getDatabaseInstance as database, getAnalyticsInstance as analytics };
+export const firestore = () => firestoreInstance;
+export const database = () => databaseInstance;
+export const analytics = () => analyticsInstance;
