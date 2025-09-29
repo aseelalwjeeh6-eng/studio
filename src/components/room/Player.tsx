@@ -10,7 +10,7 @@ import { PlayerState } from './RoomClient';
 interface PlayerProps {
   videoUrl: string;
   onSetVideo: (url: string) => void;
-  isHost: boolean;
+  canControl: boolean;
   onSearchClick: () => void;
   playerState: PlayerState | null;
   onPlayerStateChange: (newState: Partial<PlayerState>) => void;
@@ -31,7 +31,7 @@ function getYouTubeVideoId(url: string): string {
   return '';
 }
 
-const Player = ({ videoUrl, onSetVideo, isHost, onSearchClick, playerState, onPlayerStateChange }: PlayerProps) => {
+const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, onPlayerStateChange }: PlayerProps) => {
   const videoId = useMemo(() => getYouTubeVideoId(videoUrl), [videoUrl]);
   const [localVideoUrl, setLocalVideoUrl] = useState('');
   const playerRef = useRef<YouTubePlayer | null>(null);
@@ -44,7 +44,7 @@ const Player = ({ videoUrl, onSetVideo, isHost, onSearchClick, playerState, onPl
   // Sync player with host's state
   useEffect(() => {
     const player = playerRef.current;
-    if (!player || !playerState || isHost || !isPlayerReady.current) return;
+    if (!player || !playerState || canControl || !isPlayerReady.current) return;
 
     // Sync play/pause state
     const playerStatus = player.getPlayerState();
@@ -65,7 +65,7 @@ const Player = ({ videoUrl, onSetVideo, isHost, onSearchClick, playerState, onPl
         setTimeout(() => { isSeekingRef.current = false; }, 1000);
     }
 
-  }, [playerState, isHost]);
+  }, [playerState, canControl]);
 
 
   const onReady = (event: { target: YouTubePlayer }) => {
@@ -84,7 +84,7 @@ const Player = ({ videoUrl, onSetVideo, isHost, onSearchClick, playerState, onPl
   };
   
   const onStateChange = (event: { data: number }) => {
-      if (!isHost || !playerRef.current || isSeekingRef.current) return;
+      if (!canControl || !playerRef.current || isSeekingRef.current) return;
       
       const currentTime = playerRef.current.getCurrentTime();
       
@@ -103,7 +103,7 @@ const Player = ({ videoUrl, onSetVideo, isHost, onSearchClick, playerState, onPl
 
   const handleUrlSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (localVideoUrl.trim() && isHost) {
+    if (localVideoUrl.trim() && canControl) {
       onSetVideo(localVideoUrl.trim());
     }
   };
@@ -118,11 +118,11 @@ const Player = ({ videoUrl, onSetVideo, isHost, onSearchClick, playerState, onPl
                 width: '100%',
                 playerVars: {
                 autoplay: 1,
-                controls: isHost ? 1 : 0, // Show controls only for the host
+                controls: canControl ? 1 : 0, // Show controls only for host/mods
                 rel: 0,
                 showinfo: 0,
                 modestbranding: 1,
-                disablekb: isHost ? 0 : 1, // Disable keyboard for viewers
+                disablekb: canControl ? 0 : 1, // Disable keyboard for viewers
                 },
             }}
             onReady={onReady}
@@ -131,7 +131,7 @@ const Player = ({ videoUrl, onSetVideo, isHost, onSearchClick, playerState, onPl
         />
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-4 text-center">
-          {isHost ? (
+          {canControl ? (
             <div className='w-full max-w-lg'>
               <Film className="h-16 w-16 mb-4 mx-auto" />
               <h3 className="text-xl font-bold text-foreground">شاشة السينما</h3>

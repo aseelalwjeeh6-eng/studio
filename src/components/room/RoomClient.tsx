@@ -16,7 +16,7 @@ import LiveKitRoom from './LiveKitRoom';
 import Seats from './Seats';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/dialog';
 import { Input } from '../ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -53,7 +53,7 @@ interface YouTubeVideo {
   };
 }
 
-const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwitchToPlayer, videoMode, onInviteClick, isHost }: { onSearchClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; onSwitchToPlayer: () => void; videoMode: boolean; onInviteClick: () => void; isHost: boolean; }) => {
+const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwitchToPlayer, videoMode, onInviteClick, canControl }: { onSearchClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; onSwitchToPlayer: () => void; videoMode: boolean; onInviteClick: () => void; canControl: boolean; }) => {
     const { user } = useUserSession();
     const avatar = PlaceHolderImages.find(p => p.id === user?.avatarId) ?? PlaceHolderImages[0];
 
@@ -87,7 +87,7 @@ const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwi
                 </Button>
             </div>
 
-            {!videoMode && isHost && (
+            {!videoMode && canControl && (
                 <Button onClick={onSearchClick} variant="outline">
                     <Youtube className="me-2" />
                     بحث يوتيوب
@@ -115,12 +115,12 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const [videoUrl, setVideoUrl] = useState('');
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const [hostName, setHostName] = useState('');
-  const [isHost, setIsHost] = useState(false);
+  const [moderators, setModerators] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<YouTubeVideo[]>([]);
+  const [searchResults, setResults] = useState<YouTubeVideo[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
@@ -130,6 +130,10 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   
   const { toast } = useToast();
   const { room } = useLiveKitRoom();
+
+  const isHost = user?.name === hostName;
+  const isModerator = user ? moderators.includes(user.name) : false;
+  const canControl = isHost || isModerator;
 
   const viewers = useMemo(() => {
     const seatedNames = new Set(seatedMembers.map(m => m.name));
@@ -191,7 +195,6 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             }
         }
 
-        setIsHost(roomData.host === user.name);
         setHostName(roomData.host);
 
         await goOnline(db);
@@ -220,6 +223,8 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     const seatedMembersRef = ref(db, `rooms/${roomId}/seatedMembers`);
     const videoUrlRef = ref(db, `rooms/${roomId}/videoUrl`);
     const playerStateRef = ref(db, `rooms/${roomId}/playerState`);
+    const hostRef = ref(db, `rooms/${roomId}/host`);
+    const moderatorsRef = ref(db, `rooms/${roomId}/moderators`);
     
     const onMembersValue = onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : []));
     const onSeatedMembersValue = onValue(seatedMembersRef, (snapshot) => {
@@ -229,6 +234,8 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     });
     const onVideoUrlValue = onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || ''));
     const onPlayerStateValue = onValue(playerStateRef, (snapshot) => setPlayerState(snapshot.val()));
+    const onHostValue = onValue(hostRef, (snapshot) => setHostName(snapshot.val() || ''));
+    const onModeratorsValue = onValue(moderatorsRef, (snapshot) => setModerators(snapshot.val() || []));
 
 
     return () => {
@@ -236,6 +243,8 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       onValue(seatedMembersRef, onSeatedMembersValue);
       onValue(videoUrlRef, onVideoUrlValue);
       onValue(playerStateRef, onPlayerStateValue);
+      onValue(hostRef, onHostValue);
+      onValue(moderatorsRef, onModeratorsValue);
       
       if (user) {
         const memberRef = ref(db, `rooms/${roomId}/members/${user.name}`);
@@ -310,14 +319,14 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
 
   const performSearch = async (query: string) => {
-      if (!query.trim() || !isHost) return;
+      if (!query.trim() || !canControl) return;
       
       setIsSearching(true);
       setSearchError(null);
-      setSearchResults([]);
+      setResults([]);
       try {
         const results = await searchYoutube({ query: query.trim() });
-        setSearchResults(results.items);
+        setResults(results.items);
         updateSearchHistory(query.trim());
       } catch (error) {
           console.error("YouTube search failed:", error);
@@ -337,11 +346,11 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }
   
   const handleSelectVideo = (videoId: string) => {
-      if (isHost) {
+      if (canControl) {
         onSetVideo(`https://www.youtube.com/watch?v=${videoId}`);
         setIsSearchOpen(false);
         setSearchQuery('');
-        setSearchResults([]);
+        setResults([]);
       }
   };
 
@@ -351,7 +360,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
 
   const onSetVideo = (url: string) => {
-    if (isHost && url) {
+    if (canControl && url) {
       const db = database();
       const videoUrlRef = ref(db, `rooms/${roomId}/videoUrl`);
       set(videoUrlRef, url);
@@ -362,7 +371,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
   
   const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
-    if (isHost) {
+    if (canControl) {
       const playerStateRef = ref(database(), `rooms/${roomId}/playerState`);
       runTransaction(playerStateRef, (currentState) => {
         return { ...currentState, ...newState, timestamp: serverTimestamp() };
@@ -372,7 +381,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   
 
   const handleKickUser = (userNameToKick: string) => {
-    if (!isHost || !userNameToKick) return;
+    if (!canControl || !userNameToKick) return;
 
     const db = database();
     const memberRef = ref(db, `rooms/${roomId}/members/${userNameToKick}`);
@@ -404,6 +413,30 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     }
   };
 
+  const handlePromote = (userName: string) => {
+      if (!isHost) return;
+      const roomRef = ref(database(), `rooms/${roomId}/moderators`);
+      const newModerators = [...moderators, userName];
+      set(roomRef, newModerators);
+      toast({ title: "تمت الترقية", description: `أصبح ${userName} مشرفًا.` });
+  }
+
+  const handleDemote = (userName: string) => {
+      if (!isHost) return;
+      const roomRef = ref(database(), `rooms/${roomId}/moderators`);
+      const newModerators = moderators.filter(mod => mod !== userName);
+      set(roomRef, newModerators);
+      toast({ title: "تم تخفيض الرتبة", description: `لم يعد ${userName} مشرفًا.` });
+  }
+
+  const handleTransferHost = (userName: string) => {
+      if (!isHost) return;
+      const roomRef = ref(database(), `rooms/${roomId}/host`);
+      set(roomRef, userName);
+      handleDemote(userName); // Demote from moderator if they were one
+      toast({ title: "تم نقل الملكية", description: `أصبحت الغرفة الآن ملك ${userName}.` });
+  }
+
   const getAvatar = (user: AppUser | Member | SeatedMember) => {
     return PlaceHolderImages.find(p => p.id === user.avatarId) ?? PlaceHolderImages[0];
   }
@@ -434,7 +467,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                 onSwitchToPlayer={handleSwitchToPlayer}
                 videoMode={videoMode}
                 onInviteClick={handleOpenInviteDialog}
-                isHost={isHost}
+                canControl={canControl}
             />
             <main className="w-full max-w-7xl mx-auto flex-grow flex flex-col gap-4 px-4 pb-4">
                 {videoMode ? (
@@ -447,18 +480,22 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                             <Player 
                                 videoUrl={videoUrl} 
                                 onSetVideo={onSetVideo} 
-                                isHost={isHost} 
+                                canControl={canControl} 
                                 onSearchClick={() => setIsSearchOpen(true)}
                                 playerState={playerState}
                                 onPlayerStateChange={handlePlayerStateChange}
                             />
                             <Seats 
                                 seatedMembers={seatedMembers}
+                                moderators={moderators}
                                 onTakeSeat={handleTakeSeat}
                                 onLeaveSeat={handleLeaveSeat}
                                 currentUser={user}
                                 isHost={isHost}
                                 onKickUser={handleKickUser}
+                                onPromote={handlePromote}
+                                onDemote={handleDemote}
+                                onTransferHost={handleTransferHost}
                                 room={room}
                             />
                             <ViewerInfo members={viewers} />

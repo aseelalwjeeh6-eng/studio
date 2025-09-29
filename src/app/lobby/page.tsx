@@ -79,6 +79,7 @@ export default function LobbyPage() {
       members: {},
       isPrivate: isPrivate,
       authorizedMembers: isPrivate ? { [user.name]: true } : {},
+      moderators: [],
     };
 
     try {

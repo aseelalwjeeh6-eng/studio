@@ -1,6 +1,6 @@
 'use client';
 
-import { Armchair, Mic, MicOff, User, LogOut, ShieldX, MoreVertical } from 'lucide-react';
+import { Armchair, Mic, MicOff, User, LogOut, ShieldX, MoreVertical, Crown, ShieldCheck, UserCog, ArrowDownUp } from 'lucide-react';
 import { SeatedMember } from './RoomClient';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -10,40 +10,64 @@ import { cn } from '@/lib/utils';
 import { User as UserSession } from '@/app/providers';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 const Seat = ({ 
     seatId,
     seatedMember, 
     participant,
+    moderators,
     onTakeSeat,
     currentUser,
     isHost,
     onKickUser,
     isCurrentUserSeated,
     onLeaveSeat,
+    onPromote,
+    onDemote,
+    onTransferHost,
     room,
 }: { 
     seatId: number;
     seatedMember?: SeatedMember;
     participant?: Participant;
+    moderators: string[];
     onTakeSeat: (seatId: number) => void;
     currentUser: UserSession;
     isHost: boolean;
     onKickUser: (userName: string) => void;
     isCurrentUserSeated: boolean;
     onLeaveSeat: () => void;
+    onPromote: (userName: string) => void;
+    onDemote: (userName: string) => void;
+    onTransferHost: (userName: string) => void;
     room?: Room;
 }) => {
     const isOccupied = !!seatedMember;
     const isCurrentUserSeatedHere = isOccupied && seatedMember.name === currentUser.name;
     const { localParticipant } = useLocalParticipant();
+
+    const isMemberModerator = seatedMember ? moderators.includes(seatedMember.name) : false;
+    const isCurrentUserModerator = moderators.includes(currentUser.name);
     
     const isMuted = participant ? participant.isMicrophoneMuted : true;
     const isSpeaking = participant ? participant.isSpeaking : false;
     
     const avatar = PlaceHolderImages.find(p => p.id === seatedMember?.avatarId) ?? PlaceHolderImages[0];
 
+    const canKick = (isHost || isCurrentUserModerator) && seatedMember && seatedMember.name !== currentUser.name && (!moderators.includes(seatedMember.name) || isHost);
+    
     const toggleOwnMute = () => {
         if (isCurrentUserSeatedHere && localParticipant) {
             const isEnabled = localParticipant.isMicrophoneEnabled;
@@ -51,34 +75,81 @@ const Seat = ({
         }
     };
     
-    const handleHostMuteToggle = () => {
-        if (!isHost || !participant || isCurrentUserSeatedHere || !room) return;
-        
-        const micTrack = participant.getTrackPublication(Participant.Source.Microphone);
-        if (micTrack?.track) {
-            // Mute the track for everyone in the room
-            room.localParticipant.setTrackMuted(micTrack.trackSid, !micTrack.isMuted);
+    const handleRemoteMute = () => {
+        if (!participant || !room) return;
+        if (isHost || (isCurrentUserModerator && !isMemberModerator)) {
+            const micTrack = participant.getTrackPublication(Participant.Source.Microphone);
+            if (micTrack?.track) {
+                room.localParticipant.setTrackMuted(micTrack.trackSid, true);
+            }
         }
     };
 
     const hostControls = isHost && participant && !isCurrentUserSeatedHere && (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="absolute -top-2 -left-2 w-7 h-7 rounded-full bg-secondary/80 hover:bg-secondary">
-                    <MoreVertical className="w-4 h-4" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-                <DropdownMenuItem onClick={handleHostMuteToggle} disabled={isMuted}>
-                    <MicOff className="me-2" />
-                    كتم الصوت
+        <DropdownMenuContent>
+            {isMemberModerator ? (
+                <DropdownMenuItem onClick={() => onDemote(seatedMember!.name)}>
+                    <ArrowDownUp className="me-2" /> تخفيض إلى عضو
                 </DropdownMenuItem>
+            ) : (
+                <DropdownMenuItem onClick={() => onPromote(seatedMember!.name)}>
+                    <ShieldCheck className="me-2" /> ترقية إلى مشرف
+                </DropdownMenuItem>
+            )}
+            
+            <DropdownMenuSeparator />
+            
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        <Crown className="me-2" /> نقل الملكية
+                    </DropdownMenuItem>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>هل تريد نقل ملكية الغرفة؟</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           سيتم منح {seatedMember!.name} جميع صلاحيات المضيف، وستفقد صلاحياتك كمضيف. لا يمكن التراجع عن هذا الإجراء.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => onTransferHost(seatedMember!.name)}>
+                            نعم، قم بنقل الملكية
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            
+            <DropdownMenuSeparator />
+
+            {!isMuted && (
+              <DropdownMenuItem onClick={handleRemoteMute}>
+                  <MicOff className="me-2" /> كتم الصوت
+              </DropdownMenuItem>
+            )}
+            
+            {canKick && (
                 <DropdownMenuItem onClick={() => onKickUser(seatedMember!.name)} className="text-destructive">
-                    <ShieldX className="me-2" />
-                    طرد من الغرفة
+                    <ShieldX className="me-2" /> طرد من الغرفة
                 </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+            )}
+        </DropdownMenuContent>
+    );
+
+    const moderatorControls = isCurrentUserModerator && !isHost && participant && !isCurrentUserSeatedHere && !isMemberModerator && (
+         <DropdownMenuContent>
+            {!isMuted && (
+              <DropdownMenuItem onClick={handleRemoteMute}>
+                  <MicOff className="me-2" /> كتم الصوت
+              </DropdownMenuItem>
+            )}
+            {canKick && (
+                <DropdownMenuItem onClick={() => onKickUser(seatedMember!.name)} className="text-destructive">
+                    <ShieldX className="me-2" /> طرد من الغرفة
+                </DropdownMenuItem>
+            )}
+        </DropdownMenuContent>
     );
 
     const userControls = isCurrentUserSeatedHere && localParticipant && (
@@ -95,17 +166,23 @@ const Seat = ({
         if (isOccupied) {
             return (
                 <div className="relative">
-                    {hostControls}
-                    <Avatar className={cn(
-                        "w-20 h-20 border-2",
-                        isSpeaking ? "border-accent animate-pulse" : "border-transparent",
-                        isCurrentUserSeatedHere ? "border-accent ring-2 ring-accent" : ""
-                    )}>
-                        <AvatarImage src={avatar?.imageUrl} alt={seatedMember!.name} />
-                        <AvatarFallback>
-                            <User className="w-10 h-10" />
-                        </AvatarFallback>
-                    </Avatar>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild disabled={!(hostControls || moderatorControls)}>
+                             <Avatar className={cn(
+                                "w-20 h-20 border-2 cursor-pointer",
+                                isSpeaking ? "border-accent animate-pulse" : "border-transparent",
+                                isCurrentUserSeatedHere ? "border-accent ring-2 ring-accent" : ""
+                            )}>
+                                <AvatarImage src={avatar?.imageUrl} alt={seatedMember!.name} />
+                                <AvatarFallback>
+                                    <User className="w-10 h-10" />
+                                </AvatarFallback>
+                            </Avatar>
+                        </DropdownMenuTrigger>
+                        {hostControls}
+                        {moderatorControls}
+                    </DropdownMenu>
+
                     {userControls}
                 </div>
             )
@@ -120,8 +197,15 @@ const Seat = ({
             </button>
         )
     };
-
-    const name = isOccupied ? (isCurrentUserSeatedHere ? "أنت" : seatedMember.name) : "شاغر";
+    
+    const nameText = isOccupied ? (isCurrentUserSeatedHere ? "أنت" : seatedMember.name) : "شاغر";
+    const getRoleIcon = () => {
+        if(!seatedMember) return null;
+        if(isHost && seatedMember.name === currentUser.name) return <Crown className='w-4 h-4 text-yellow-400' />;
+        if(isMemberModerator) return <ShieldCheck className='w-4 h-4 text-blue-400' />;
+        return null;
+    }
+    const roleIcon = getRoleIcon();
 
     return (
         <TooltipProvider>
@@ -129,7 +213,10 @@ const Seat = ({
                 <TooltipTrigger asChild>
                     <div className="flex flex-col items-center gap-2">
                         {seatContent()}
-                         <p className="text-sm font-semibold text-foreground truncate w-24 text-center">{name}</p>
+                         <div className="flex items-center gap-1">
+                             {roleIcon}
+                             <p className="text-sm font-semibold text-foreground truncate w-20 text-center">{nameText}</p>
+                         </div>
                          {isCurrentUserSeatedHere && (
                             <Button onClick={onLeaveSeat} variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs">
                                 <LogOut className="me-1 w-3 h-3" />
@@ -153,19 +240,27 @@ const Seat = ({
 
 const Seats = ({ 
     seatedMembers, 
+    moderators,
     onTakeSeat, 
     onLeaveSeat, 
     currentUser,
     isHost,
     onKickUser,
+    onPromote,
+    onDemote,
+    onTransferHost,
     room,
 }: { 
     seatedMembers: SeatedMember[],
+    moderators: string[],
     onTakeSeat: (seatId: number) => void;
     onLeaveSeat: () => void;
     currentUser: UserSession;
     isHost: boolean;
     onKickUser: (userName: string) => void;
+    onPromote: (userName: string) => void;
+    onDemote: (userName: string) => void;
+    onTransferHost: (userName: string) => void;
     room?: Room;
 }) => {
     const totalSeats = 8;
@@ -200,12 +295,16 @@ const Seats = ({
                         seatId={seatId}
                         seatedMember={seatedMember} 
                         participant={participant}
+                        moderators={moderators}
                         onTakeSeat={onTakeSeat}
                         currentUser={currentUser}
-                        isHost={isHost}
+                        isHost={isHost || seatedMember?.name === currentUser.name}
                         onKickUser={onKickUser}
                         isCurrentUserSeated={isCurrentUserSeated}
                         onLeaveSeat={onLeaveSeat}
+                        onPromote={onPromote}
+                        onDemote={onDemote}
+                        onTransferHost={onTransferHost}
                         room={room}
                     />
                 ))}
@@ -215,5 +314,3 @@ const Seats = ({
 };
 
 export default Seats;
-
-    
