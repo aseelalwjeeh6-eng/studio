@@ -169,13 +169,13 @@ const Seat = ({
                      <DropdownMenu>
                         <DropdownMenuTrigger asChild disabled={!(hostControls || moderatorControls)}>
                              <Avatar className={cn(
-                                "w-20 h-20 border-2 cursor-pointer",
+                                "w-16 h-16 border-2 cursor-pointer",
                                 isSpeaking ? "border-accent animate-pulse" : "border-transparent",
                                 isCurrentUserSeatedHere ? "border-accent ring-2 ring-accent" : ""
                             )}>
                                 <AvatarImage src={avatar?.imageUrl} alt={seatedMember!.name} />
                                 <AvatarFallback>
-                                    <User className="w-10 h-10" />
+                                    <User className="w-8 h-8" />
                                 </AvatarFallback>
                             </Avatar>
                         </DropdownMenuTrigger>
@@ -190,10 +190,10 @@ const Seat = ({
         return (
             <button 
                 onClick={() => onTakeSeat(seatId)} 
-                className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center border-2 border-dashed border-border hover:border-accent transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center border-2 border-dashed border-border hover:border-accent transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!canTakeSeat}
             >
-                <Armchair className="w-10 h-10 text-muted-foreground" />
+                <Armchair className="w-8 h-8 text-muted-foreground" />
             </button>
         )
     };
@@ -263,7 +263,7 @@ const Seats = ({
     onTransferHost: (userName: string) => void;
     room?: Room;
 }) => {
-    const totalSeats = 8;
+    const totalSeats = 4;
   
     const participants = useParticipants();
     const { localParticipant } = useLocalParticipant();
@@ -287,8 +287,8 @@ const Seats = ({
     });
   
     return (
-        <div className="w-full py-4">
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-x-4 gap-y-8">
+        <div className="w-full bg-card rounded-lg p-4">
+            <div className="grid grid-cols-4 gap-x-4 gap-y-6">
                 {seats.map(({ seatId, seatedMember, participant }) => (
                     <Seat 
                         key={seatId} 

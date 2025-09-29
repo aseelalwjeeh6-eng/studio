@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import YouTube, { YouTubePlayer } from 'react-youtube';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ interface PlayerProps {
   onSearchClick: () => void;
   playerState: PlayerState | null;
   onPlayerStateChange: (newState: Partial<PlayerState>) => void;
+  onVideoEnded: () => void;
 }
 
 function getYouTubeVideoId(url: string): string {
@@ -31,7 +32,7 @@ function getYouTubeVideoId(url: string): string {
   return '';
 }
 
-const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, onPlayerStateChange }: PlayerProps) => {
+const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, onPlayerStateChange, onVideoEnded }: PlayerProps) => {
   const videoId = useMemo(() => getYouTubeVideoId(videoUrl), [videoUrl]);
   const [localVideoUrl, setLocalVideoUrl] = useState('');
   const playerRef = useRef<YouTubePlayer | null>(null);
@@ -84,10 +85,19 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   };
   
   const onStateChange = (event: { data: number }) => {
-      if (!canControl || !playerRef.current || isSeekingRef.current) return;
+      if (!playerRef.current || isSeekingRef.current) return;
       
       const currentTime = playerRef.current.getCurrentTime();
+
+      if (event.data === 0) { // Ended
+        if(canControl) {
+          onVideoEnded();
+        }
+        return;
+      }
       
+      if (!canControl) return;
+
       switch (event.data) {
           case 1: // Playing
               onPlayerStateChange({ isPlaying: true, seekTime: currentTime, timestamp: Date.now() });
@@ -112,17 +122,19 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     <div className="aspect-video w-full rounded-lg overflow-hidden shadow-md bg-black relative">
       {videoId ? (
         <YouTube
+            key={videoId} // Force re-render when videoId changes
             videoId={videoId}
             opts={{
                 height: '100%',
                 width: '100%',
                 playerVars: {
-                autoplay: 1,
-                controls: canControl ? 1 : 0, // Show controls only for host/mods
-                rel: 0,
-                showinfo: 0,
-                modestbranding: 1,
-                disablekb: canControl ? 0 : 1, // Disable keyboard for viewers
+                  autoplay: 1,
+                  controls: canControl ? 1 : 0,
+                  rel: 0,
+                  showinfo: 0,
+                  modestbranding: 1,
+                  iv_load_policy: 3, // Disable annotations
+                  disablekb: canControl ? 0 : 1,
                 },
             }}
             onReady={onReady}

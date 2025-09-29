@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, FormEvent } from 'react';
+import { useEffect, useState, useMemo, FormEvent, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { database } from '@/lib/firebase';
 import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction, update } from 'firebase/database';
@@ -9,7 +9,7 @@ import Player from './Player';
 import Chat from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
-import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send } from 'lucide-react';
+import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, ListPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AudioConference, useLiveKitRoom } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
@@ -23,6 +23,7 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import VideoConference from './VideoConference';
 import { AppUser, getFriends, sendRoomInvitation } from '@/lib/firebase-service';
+import Playlist, { PlaylistItem } from './Playlist';
 
 
 export type Member = { 
@@ -47,8 +48,10 @@ interface YouTubeVideo {
   id: { videoId: string };
   snippet: {
     title: string;
+    description: string;
     thumbnails: {
       default: { url: string };
+      medium: { url: string };
     };
   };
 }
@@ -118,6 +121,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const [moderators, setModerators] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState('');
+  const [playlist, setPlaylist] = useState<PlaylistItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setResults] = useState<YouTubeVideo[]>([]);
@@ -225,6 +229,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     const playerStateRef = ref(db, `rooms/${roomId}/playerState`);
     const hostRef = ref(db, `rooms/${roomId}/host`);
     const moderatorsRef = ref(db, `rooms/${roomId}/moderators`);
+    const playlistRef = ref(db, `rooms/${roomId}/playlist`);
     
     const onMembersValue = onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : []));
     const onSeatedMembersValue = onValue(seatedMembersRef, (snapshot) => {
@@ -236,7 +241,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     const onPlayerStateValue = onValue(playerStateRef, (snapshot) => setPlayerState(snapshot.val()));
     const onHostValue = onValue(hostRef, (snapshot) => setHostName(snapshot.val() || ''));
     const onModeratorsValue = onValue(moderatorsRef, (snapshot) => setModerators(snapshot.val() || []));
-
+    const onPlaylistValue = onValue(playlistRef, (snapshot) => setPlaylist(snapshot.val() || []));
 
     return () => {
       onValue(membersRef, onMembersValue);
@@ -245,6 +250,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       onValue(playerStateRef, onPlayerStateValue);
       onValue(hostRef, onHostValue);
       onValue(moderatorsRef, onModeratorsValue);
+      onValue(playlistRef, onPlaylistValue);
       
       if (user) {
         const memberRef = ref(db, `rooms/${roomId}/members/${user.name}`);
@@ -345,21 +351,34 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     performSearch(searchQuery);
   }
   
-  const handleSelectVideo = (videoId: string) => {
-      if (canControl) {
-        onSetVideo(`https://www.youtube.com/watch?v=${videoId}`);
-        setIsSearchOpen(false);
-        setSearchQuery('');
-        setResults([]);
-      }
+  const handleAddToPlaylist = (video: YouTubeVideo) => {
+    if (!canControl) return;
+    const newPlaylistItem: PlaylistItem = {
+      id: video.id.videoId,
+      videoId: video.id.videoId,
+      title: video.snippet.title,
+      thumbnail: video.snippet.thumbnails.medium.url,
+    };
+
+    const playlistRef = ref(database(), `rooms/${roomId}/playlist`);
+    const newPlaylist = [...playlist, newPlaylistItem];
+    set(playlistRef, newPlaylist);
+    
+    // If nothing is playing, start playing the new video
+    if (!videoUrl) {
+      onSetVideo(`https://www.youtube.com/watch?v=${video.id.videoId}`);
+    }
+
+    toast({ title: "أضيف إلى الطابور", description: video.snippet.title });
   };
+
 
   const handleHistoryClick = (query: string) => {
       setSearchQuery(query);
       performSearch(query);
   };
 
-  const onSetVideo = (url: string) => {
+  const onSetVideo = useCallback((url: string) => {
     if (canControl && url) {
       const db = database();
       const videoUrlRef = ref(db, `rooms/${roomId}/videoUrl`);
@@ -368,7 +387,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       const playerStateRef = ref(db, `rooms/${roomId}/playerState`);
       set(playerStateRef, { isPlaying: true, seekTime: 0, timestamp: serverTimestamp() });
     }
-  };
+  }, [canControl, roomId]);
   
   const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
     if (canControl) {
@@ -377,6 +396,36 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         return { ...currentState, ...newState, timestamp: serverTimestamp() };
       });
     }
+  };
+
+  const handleVideoEnded = () => {
+    if (!canControl) return;
+
+    const currentVideoId = videoUrl.includes('v=') ? new URL(videoUrl).searchParams.get('v') : null;
+    const currentIndex = playlist.findIndex(item => item.videoId === currentVideoId);
+
+    const playlistRef = ref(database(), `rooms/${roomId}/playlist`);
+    const newPlaylist = playlist.filter(item => item.videoId !== currentVideoId);
+    set(playlistRef, newPlaylist);
+
+    if (currentIndex !== -1 && newPlaylist.length > 0) {
+      const nextVideo = newPlaylist[0];
+      onSetVideo(`https://www.youtube.com/watch?v=${nextVideo.videoId}`);
+    } else {
+      onSetVideo('');
+    }
+  };
+  
+  const handlePlayPlaylistItem = (videoId: string) => {
+    if (!canControl) return;
+    onSetVideo(`https://www.youtube.com/watch?v=${videoId}`);
+  };
+
+  const handleRemovePlaylistItem = (videoId: string) => {
+      if (!canControl) return;
+      const playlistRef = ref(database(), `rooms/${roomId}/playlist`);
+      const newPlaylist = playlist.filter(item => item.videoId !== videoId);
+      set(playlistRef, newPlaylist);
   };
   
 
@@ -484,20 +533,30 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                                 onSearchClick={() => setIsSearchOpen(true)}
                                 playerState={playerState}
                                 onPlayerStateChange={handlePlayerStateChange}
+                                onVideoEnded={handleVideoEnded}
                             />
-                            <Seats 
-                                seatedMembers={seatedMembers}
-                                moderators={moderators}
-                                onTakeSeat={handleTakeSeat}
-                                onLeaveSeat={handleLeaveSeat}
-                                currentUser={user}
-                                isHost={isHost}
-                                onKickUser={handleKickUser}
-                                onPromote={handlePromote}
-                                onDemote={handleDemote}
-                                onTransferHost={handleTransferHost}
-                                room={room}
-                            />
+                            <div className="grid grid-cols-2 gap-4">
+                                <Seats 
+                                    seatedMembers={seatedMembers}
+                                    moderators={moderators}
+                                    onTakeSeat={handleTakeSeat}
+                                    onLeaveSeat={handleLeaveSeat}
+                                    currentUser={user}
+                                    isHost={isHost}
+                                    onKickUser={handleKickUser}
+                                    onPromote={handlePromote}
+                                    onDemote={handleDemote}
+                                    onTransferHost={handleTransferHost}
+                                    room={room}
+                                />
+                                <Playlist
+                                    items={playlist}
+                                    canControl={canControl}
+                                    onPlay={handlePlayPlaylistItem}
+                                    onRemove={handleRemovePlaylistItem}
+                                    currentVideoUrl={videoUrl}
+                                />
+                            </div>
                             <ViewerInfo members={viewers} />
                         </div>
                         <div className="min-h-0">
@@ -606,20 +665,28 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                                 {searchResults.map((video) => (
                                     <div
                                     key={video.id.videoId}
-                                    className="flex items-start gap-4 p-3 rounded-lg hover:bg-secondary cursor-pointer transition-colors"
-                                    onClick={() => handleSelectVideo(video.id.videoId)}
+                                    className="flex items-center gap-4 p-3 rounded-lg bg-card/50"
                                     >
                                     <Image
                                         src={video.snippet.thumbnails.default.url}
                                         alt={video.snippet.title}
-                                        width={160}
-                                        height={90}
+                                        width={120}
+                                        height={68}
                                         className="rounded-lg aspect-video object-cover"
                                     />
-                                    <div className="flex flex-col">
-                                        <h3 className="text-lg font-semibold text-foreground line-clamp-2">{video.snippet.title}</h3>
-                                        <p className="text-sm text-muted-foreground mt-1">اسم القناة</p> 
-                                        <p className="text-sm text-muted-foreground">مشاهدات · قبل وقت</p>
+                                    <div className="flex-grow">
+                                        <h3 className="text-md font-semibold text-foreground line-clamp-2">{video.snippet.title}</h3>
+                                        <p className="text-sm text-muted-foreground line-clamp-1">{video.snippet.description}</p> 
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                         <Button size="sm" variant="secondary" onClick={() => onSetVideo(`https://www.youtube.com/watch?v=${video.id.videoId}`)}>
+                                            <Play className="me-2 h-4 w-4" />
+                                            تشغيل الآن
+                                        </Button>
+                                        <Button size="sm" onClick={() => handleAddToPlaylist(video)}>
+                                            <ListPlus className="me-2 h-4 w-4" />
+                                            إضافة للطابور
+                                        </Button>
                                     </div>
                                     </div>
                                 ))}

@@ -80,6 +80,7 @@ export default function LobbyPage() {
       isPrivate: isPrivate,
       authorizedMembers: isPrivate ? { [user.name]: true } : {},
       moderators: [],
+      playlist: [],
     };
 
     try {
