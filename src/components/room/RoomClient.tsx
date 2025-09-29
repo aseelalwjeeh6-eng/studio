@@ -164,60 +164,61 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   useEffect(() => {
     if (isUserLoaded && !user) {
       router.push('/');
+      return;
     }
-    if (isUserLoaded && user) {
-        setIsLoading(false);
+    if (!isUserLoaded) {
+      return;
     }
-  }, [isUserLoaded, user, router]);
-
-
-  useEffect(() => {
-    if (!user || isLoading) return;
 
     const db = database();
     const roomRef = ref(db, `rooms/${roomId}`);
-    
+
     const setupRoom = async () => {
+      // 1. Pre-check room existence and authorization
+      const snapshot = await get(roomRef);
+      if (!snapshot.exists()) {
+        toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
+        router.push('/lobby');
+        return;
+      }
+      
+      const roomData = snapshot.val();
+      
+      // 2. Privacy check
+      if (roomData.isPrivate) {
+          const isUserHost = roomData.host === user!.name;
+          const isAuthorized = roomData.authorizedMembers && roomData.authorizedMembers[user!.name];
+          if (!isUserHost && !isAuthorized) {
+              toast({ title: 'غرفة خاصة', description: 'ليس لديك إذن لدخول هذه الغرفة.', variant: 'destructive' });
+              router.push('/lobby');
+              return;
+          }
+      }
+
+      // If checks pass, proceed to set up the room
+      setHostName(roomData.host);
+      setIsLoading(false); // Stop loading, now we can render the room
+
       try {
-        const snapshot = await get(roomRef);
-        if (!snapshot.exists()) {
-          toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
-          router.push('/lobby');
-          return;
-        }
-        
-        const roomData = snapshot.val();
-        
-        // Privacy check
-        if (roomData.isPrivate) {
-            const isHost = roomData.host === user.name;
-            const isAuthorized = roomData.authorizedMembers && roomData.authorizedMembers[user.name];
-            if (!isHost && !isAuthorized) {
-                toast({ title: 'غرفة خاصة', description: 'ليس لديك إذن لدخول هذه الغرفة.', variant: 'destructive' });
-                router.push('/lobby');
-                return;
-            }
-        }
-
-        setHostName(roomData.host);
-
         await goOnline(db);
-        const userRef = ref(db, `rooms/${roomId}/members/${user.name}`);
-        const memberData = { name: user.name, avatarId: user.avatarId, joinedAt: serverTimestamp() };
+        const userRef = ref(db, `rooms/${roomId}/members/${user!.name}`);
+        const memberData = { name: user!.name, avatarId: user!.avatarId, joinedAt: serverTimestamp() };
         await set(userRef, memberData);
         onDisconnect(userRef).remove();
         
-        const userSeat = seatedMembers.find(m => m.name === user.name);
+        const userSeat = seatedMembers.find(m => m.name === user!.name);
         if(userSeat) {
             const seatRef = ref(db, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
             onDisconnect(seatRef).remove();
         }
 
-        const tokenResp = await fetch(`/api/livekit?room=${roomId}&username=${user.name}`);
+        const tokenResp = await fetch(`/api/livekit?room=${roomId}&username=${user!.name}`);
         const tokenData = await tokenResp.json();
         setToken(tokenData.token);
       } catch (e) {
         console.error("Failed to setup room or fetch LiveKit token", e);
+        toast({ title: 'خطأ في الاتصال', description: 'فشل الاتصال بالغرفة.', variant: 'destructive' });
+        router.push('/lobby');
       }
     };
 
@@ -263,7 +264,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       }
       goOffline(db);
     };
-  }, [user, isLoading, roomId, router, toast]);
+  }, [isUserLoaded, user, roomId, router, toast]);
 
   useEffect(() => {
       if(typeof window !== 'undefined') {
@@ -491,7 +492,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }
 
 
-  if (isLoading || !user) {
+  if (isLoading || !isUserLoaded || !user) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-accent" />
@@ -701,3 +702,5 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 };
 
 export default RoomClient;
+
+    
