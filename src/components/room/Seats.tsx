@@ -4,7 +4,7 @@ import { Armchair, Mic, MicOff, User, LogOut, ShieldX, MoreVertical } from 'luci
 import { SeatedMember } from './RoomClient';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useLocalParticipant, useParticipant } from '@livekit/components-react';
+import { useLocalParticipant } from '@livekit/components-react';
 import { Participant } from 'livekit-client';
 import { cn } from '@/lib/utils';
 import { User as UserSession } from '@/app/providers';
@@ -53,8 +53,6 @@ const Seat = ({
     
     const handleHostMuteToggle = () => {
         if (!isHost || !seatedMember || isCurrentUserSeatedHere) return;
-        // This is a UI-only mute for now, as remote muting requires more complex permissions.
-        // It provides a visual cue to the user they have been muted by the host.
         setIsLocallyMutedByHost(!isLocallyMutedByHost);
     }
 
@@ -139,9 +137,9 @@ const Seat = ({
                 </TooltipTrigger>
                 <TooltipContent>
                     <p>{seatedMember?.name || "شاغر"}</p>
-                     {isOccupied && participant && (
+                     {isOccupied && (
                         <p className="text-xs text-muted-foreground">
-                            { isSpeaking ? 'يتحدث...' : (finalIsMuted ? 'الصوت مكتوم' : 'الميكروفون مفتوح') }
+                            { isSpeaking ? 'يتحدث...' : (finalIsMuted ? (isLocallyMutedByHost ? 'مكتوم من قبل المضيف' : 'الصوت مكتوم') : 'الميكروفون مفتوح') }
                         </p>
                     )}
                 </TooltipContent>
@@ -167,11 +165,10 @@ const Seats = ({
 }) => {
     const totalSeats = 8;
   
+    const { remoteParticipants } = useLocalParticipant();
+  
     const getParticipant = (name: string): Participant | undefined => {
-      // This is a placeholder as we can't directly get a single participant by name easily
-      // In a real app, you might have a map of participants by identity
-      // For now, this will not provide participant data to the Seat component
-      return undefined;
+      return remoteParticipants.find(p => p.identity === name);
     };
   
     const seats = Array.from({ length: totalSeats }, (_, index) => {
@@ -206,5 +203,3 @@ const Seats = ({
 };
 
 export default Seats;
-
-    
