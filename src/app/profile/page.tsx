@@ -5,17 +5,28 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { User as UserIcon, Loader2, CheckCircle, Image as ImageIcon } from 'lucide-react';
+import { PlaceHolderImages, ImagePlaceholder } from '@/lib/placeholder-images';
+import { User as UserIcon, Loader2, CheckCircle, Image as ImageIcon, Sparkles, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { upsertUser } from '@/lib/firebase-service';
+import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ProfilePage() {
   const { user, setUser, isLoaded } = useUserSession();
   const router = useRouter();
+  const { toast } = useToast();
+  
   const [selectedAvatarId, setSelectedAvatarId] = useState<string | undefined>(user?.avatarId);
   const [isPending, startTransition] = useTransition();
+
+  const [generatedAvatars, setGeneratedAvatars] = useState<ImagePlaceholder[]>([]);
+  const [avatarPrompt, setAvatarPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
 
   useEffect(() => {
     if (isLoaded && !user) {
@@ -36,7 +47,31 @@ export default function ProfilePage() {
     });
   };
 
-  const currentAvatar = PlaceHolderImages.find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id === 'avatar1');
+  const handleGenerateAvatar = async () => {
+    if (!avatarPrompt.trim()) return;
+    setIsGenerating(true);
+    try {
+        const { imageUrl } = await generateAvatar({ prompt: avatarPrompt });
+        const newAvatar: ImagePlaceholder = {
+            id: `gen-${Date.now()}`,
+            description: avatarPrompt,
+            imageUrl: imageUrl,
+            imageHint: 'generated avatar'
+        };
+        setGeneratedAvatars(prev => [newAvatar, ...prev]);
+        setAvatarPrompt('');
+        handleAvatarSelect(newAvatar.id); // Auto-select the new avatar
+        toast({ title: "تم إنشاء الصورة الرمزية!", description: "تم تحديد صورتك الرمزية الجديدة." });
+    } catch (error) {
+        console.error("Avatar generation failed:", error);
+        toast({ title: "فشل إنشاء الصورة", description: "حدث خطأ أثناء محاولة إنشاء صورتك الرمزية. يرجى المحاولة مرة أخرى.", variant: "destructive" });
+    } finally {
+        setIsGenerating(false);
+    }
+  };
+
+
+  const currentAvatar = [...PlaceHolderImages, ...generatedAvatars].find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id === 'avatar1');
   const avatarPlaceholders = PlaceHolderImages.filter(p => p.id.startsWith('avatar'));
 
   if (!isLoaded || !user) {
@@ -61,6 +96,35 @@ export default function ProfilePage() {
           <CardDescription className="text-lg text-muted-foreground">"عشاق السينما"</CardDescription>
         </CardHeader>
       </Card>
+      
+      <Card className="w-full max-w-4xl bg-card/50 backdrop-blur-lg border-accent/20 shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="text-accent" />
+            <span>اصنع صورتك الرمزية بالذكاء الاصطناعي</span>
+          </CardTitle>
+          <CardDescription>
+            اكتب وصفًا للصورة التي تتخيلها، ودع الذكاء الاصطناعي يصنعها لك.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="flex gap-2">
+                <Input
+                    type="text"
+                    placeholder="مثال: رجل فضاء يرتدي خوذة زهرية..."
+                    value={avatarPrompt}
+                    onChange={(e) => setAvatarPrompt(e.target.value)}
+                    disabled={isGenerating}
+                    className="bg-input"
+                />
+                <Button onClick={handleGenerateAvatar} disabled={isGenerating || !avatarPrompt.trim()}>
+                    {isGenerating ? <Loader2 className="me-2 animate-spin" /> : <Wand2 className="me-2" />}
+                    إنشاء
+                </Button>
+            </div>
+        </CardContent>
+      </Card>
+
 
       <Card className="w-full max-w-4xl bg-card/50 backdrop-blur-lg border-accent/20 shadow-lg">
         <CardHeader>
@@ -74,7 +138,7 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
-            {avatarPlaceholders.map((avatar) => {
+             {[...generatedAvatars, ...avatarPlaceholders].map((avatar) => {
               const isSelected = selectedAvatarId === avatar.id;
               return (
                 <div
