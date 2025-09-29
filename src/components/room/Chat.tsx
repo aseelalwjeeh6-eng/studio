@@ -2,18 +2,31 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { database } from '@/lib/firebase';
-import { ref, onValue, push } from 'firebase/database';
+import { ref, onValue, push, set } from 'firebase/database';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { User } from '@/app/providers';
-import { Bot, Send } from 'lucide-react';
+import { Trash2, Send } from 'lucide-react';
 import { filterProfanity } from '@/ai/flows/profanity-filter';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+
 
 interface ChatProps {
   roomId: string;
   user: User;
+  isHost: boolean;
 }
 
 interface Message {
@@ -22,7 +35,7 @@ interface Message {
   timestamp: number;
 }
 
-const Chat = ({ roomId, user }: ChatProps) => {
+const Chat = ({ roomId, user, isHost }: ChatProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -30,11 +43,12 @@ const Chat = ({ roomId, user }: ChatProps) => {
 
   useEffect(() => {
     const chatRef = ref(database, `rooms/${roomId}/chat`);
-    onValue(chatRef, (snapshot) => {
+    const listener = onValue(chatRef, (snapshot) => {
       const data = snapshot.val();
       const loadedMessages: Message[] = data ? Object.values(data) : [];
       setMessages(loadedMessages.sort((a, b) => a.timestamp - b.timestamp));
     });
+    return () => listener();
   }, [roomId]);
 
   useEffect(() => {
@@ -69,24 +83,53 @@ const Chat = ({ roomId, user }: ChatProps) => {
     }
   };
 
+  const handleClearChat = async () => {
+    const chatRef = ref(database, `rooms/${roomId}/chat`);
+    await set(chatRef, null);
+  };
+
   return (
     <Card className="h-full flex flex-col bg-card border-none rounded-t-2xl">
       <CardHeader className="flex flex-row items-center justify-between p-4">
         <CardTitle className="text-lg">الدردشة</CardTitle>
-        <Button variant="ghost" size="sm">
-            <Bot className="me-2" />
-            لخص لي
-        </Button>
+        {isHost && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="sm">
+                  <Trash2 className="me-2 text-destructive" />
+                  مسح الدردشة
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>هل أنت متأكد تمامًا؟</AlertDialogTitle>
+                <AlertDialogDescription>
+                  هذا الإجراء سيقوم بحذف سجل الدردشة بالكامل لجميع المستخدمين في الغرفة. لا يمكن التراجع عن هذا الإجراء.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                <AlertDialogAction onClick={handleClearChat} className="bg-destructive hover:bg-destructive/90">
+                  نعم، قم بالمسح
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </CardHeader>
       <CardContent className="flex-grow overflow-hidden p-0">
         <ScrollArea className="h-full" ref={scrollAreaRef}>
-          <div className="p-4 space-y-4">
-            {messages.map((msg, index) => (
+           <div className="p-4 space-y-4">
+            {messages.length > 0 ? messages.map((msg, index) => (
               <div key={index} className="flex flex-col">
                 <span className="font-bold text-sm text-accent">{msg.sender}</span>
-                <p className="text-md text-foreground">{msg.text}</p>
+                <p className="text-md text-foreground break-words">{msg.text}</p>
               </div>
-            ))}
+            )) : (
+              <div className="flex h-full items-center justify-center text-muted-foreground">
+                <p>لا توجد رسائل بعد. ابدأ المحادثة!</p>
+              </div>
+            )}
           </div>
         </ScrollArea>
       </CardContent>

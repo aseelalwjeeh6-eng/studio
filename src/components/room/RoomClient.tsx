@@ -167,33 +167,39 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
     const roomRef = ref(database, `rooms/${roomId}`);
     
-    get(roomRef).then((snapshot) => {
-      if (!snapshot.exists()) {
-        toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
-        router.push('/lobby');
-        return;
-      }
-      
-      const roomData = snapshot.val();
-      setIsHost(roomData.host === user.name);
-      setHostName(roomData.host);
+    const setupRoom = async () => {
+      try {
+        const snapshot = await get(roomRef);
+        if (!snapshot.exists()) {
+          toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
+          router.push('/lobby');
+          return;
+        }
+        
+        const roomData = snapshot.val();
+        setIsHost(roomData.host === user.name);
+        setHostName(roomData.host);
 
-      goOnline(database);
-      const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
-      set(userRef, { name: user.name, avatarId: user.avatarId, joinedAt: serverTimestamp() });
-      onDisconnect(userRef).remove();
-      
-      const userSeat = seatedMembers.find(m => m.name === user.name);
-      if(userSeat) {
-          const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
-          onDisconnect(seatRef).remove();
-      }
+        await goOnline(database);
+        const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+        await set(userRef, { name: user.name, avatarId: user.avatarId, joinedAt: serverTimestamp() });
+        onDisconnect(userRef).remove();
+        
+        const userSeat = seatedMembers.find(m => m.name === user.name);
+        if(userSeat) {
+            const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
+            onDisconnect(seatRef).remove();
+        }
 
-      fetch(`/api/livekit?room=${roomId}&username=${user.name}`)
-        .then(resp => resp.json())
-        .then(data => setToken(data.token))
-        .catch(e => console.error("Failed to fetch LiveKit token", e));
-    });
+        const tokenResp = await fetch(`/api/livekit?room=${roomId}&username=${user.name}`);
+        const tokenData = await tokenResp.json();
+        setToken(tokenData.token);
+      } catch (e) {
+        console.error("Failed to setup room or fetch LiveKit token", e);
+      }
+    };
+
+    setupRoom();
 
     const membersRef = ref(database, `rooms/${roomId}/members`);
     const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
@@ -211,10 +217,10 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
 
     return () => {
-      onValue(membersRef, () => {});
-      onValue(seatedMembersRef, () => {});
-      onValue(videoUrlRef, () => {});
-      onValue(playerStateRef, () => {});
+      onMembersValue();
+      onSeatedMembersValue();
+      onVideoUrlValue();
+      onPlayerStateValue();
       
       if (user) {
         const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
@@ -275,15 +281,15 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
 
   const performSearch = async (query: string) => {
-      if (!query || !isHost) return;
+      if (!query.trim() || !isHost) return;
       
       setIsSearching(true);
       setSearchError(null);
       setSearchResults([]);
       try {
-        const results = await searchYoutube({ query: query });
+        const results = await searchYoutube({ query: query.trim() });
         setSearchResults(results.items);
-        updateSearchHistory(query);
+        updateSearchHistory(query.trim());
       } catch (error) {
           console.error("YouTube search failed:", error);
           if (error instanceof Error && error.message.includes('YOUTUBE_API_KEY is not set')) {
@@ -421,7 +427,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                         />
                         <ViewerInfo members={viewers} />
                         <div className="flex-grow min-h-0">
-                            <Chat roomId={roomId} user={user} />
+                            <Chat roomId={roomId} user={user} isHost={isHost} />
                         </div>
                     </>
                 )}
@@ -498,25 +504,26 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                             <p className="text-center text-destructive text-lg">{searchError}</p>
                         </div>
                     )}
-                    {!isSearching && !searchError && searchResults.length === 0 && (
+                    {!isSearching && !searchError && searchResults.length === 0 && searchHistory.length > 0 && (
                         <div className="p-6">
                             <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-muted-foreground"><History/> سجل البحث</h2>
-                            {searchHistory.length > 0 ? (
-                                <div className="flex flex-col gap-3">
-                                    {searchHistory.map((term, index) => (
-                                        <button
-                                            key={index}
-                                            onClick={() => handleHistoryClick(term)}
-                                            className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary text-start w-full"
-                                        >
-                                            <History className="text-muted-foreground" />
-                                            <span className="text-lg text-foreground">{term}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-muted-foreground">لا يوجد سجل بحث حتى الآن.</p>
-                            )}
+                            <div className="flex flex-col gap-3">
+                                {searchHistory.map((term, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => handleHistoryClick(term)}
+                                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary text-start w-full"
+                                    >
+                                        <History className="text-muted-foreground" />
+                                        <span className="text-lg text-foreground">{term}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                     {!isSearching && !searchError && searchResults.length === 0 && searchHistory.length === 0 && (
+                         <div className="p-6 text-center text-muted-foreground">
+                            <p>لا يوجد سجل بحث حتى الآن. ابدأ البحث للعثور على مقاطع الفيديو المفضلة لديك.</p>
                         </div>
                     )}
                     {searchResults.length > 0 && (
