@@ -2,15 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { v4 as uuidv4 } from 'uuid';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlusCircle, LogIn, Loader2, Users, DoorOpen, Lock, Globe } from 'lucide-react';
 import useUserSession from '@/hooks/use-user-session';
 import { database } from '@/lib/firebase';
-import { ref, set, onValue, off, goOnline } from 'firebase/database';
+import { ref, onValue, off, goOnline } from 'firebase/database';
 import Hearts from '@/components/shared/Hearts';
+import { createRoom } from '@/ai/flows/room-creation-flow';
 
 interface RoomData {
   id: string;
@@ -69,25 +69,16 @@ export default function LobbyPage() {
     const roomType = isPrivate ? 'private' : 'public';
     setCreatingRoomType(roomType);
 
-    const newRoomId = uuidv4();
-    const roomRef = ref(database(), `rooms/${newRoomId}`);
-    const roomData = {
-      host: user.name,
-      createdAt: Date.now(),
-      videoUrl: '',
-      seatedMembers: {},
-      members: {},
-      isPrivate: isPrivate,
-      authorizedMembers: isPrivate ? { [user.name]: true } : {},
-      moderators: [],
-      playlist: [],
-    };
-
     try {
-      await set(roomRef, roomData);
+      const { roomId: newRoomId } = await createRoom({
+        hostName: user.name,
+        avatarId: user.avatarId || 'avatar1',
+        isPrivate: isPrivate,
+      });
       router.push(`/rooms/${newRoomId}`);
     } catch (error) {
       console.error("Failed to create room:", error);
+      // Optionally show a toast message to the user
       setCreatingRoomType(null);
     }
   };
