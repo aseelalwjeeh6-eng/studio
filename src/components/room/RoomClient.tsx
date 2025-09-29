@@ -293,8 +293,11 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
       // Use runTransaction or merge for updating partial state if needed,
       // for simplicity, we're setting the whole object.
       // Make sure to merge with existing state to not overwrite parts.
-      const updatedState = { ...playerState, ...newState };
-      set(playerStateRef, updatedState);
+      get(playerStateRef).then((snapshot) => {
+        const currentState = snapshot.val() || {};
+        const updatedState = { ...currentState, ...newState };
+        set(playerStateRef, updatedState);
+      });
     }
   };
 
@@ -448,3 +451,5 @@ const RoomClient = ({ roomId }: { roomId: string }) => {
 };
 
 export default RoomClient;
+
+    
