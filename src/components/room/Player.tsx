@@ -28,7 +28,7 @@ function getYouTubeVideoId(url: string): string | null {
       if (videoId) return videoId;
     }
   } catch (e) {
-    // Not a valid URL, might be just an ID
+    // Not a valid URL, could be just an ID or an external site link
   }
   
   // Handle cases where only the video ID is passed
@@ -40,7 +40,8 @@ function getYouTubeVideoId(url: string): string | null {
 }
 
 const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, onPlayerStateChange, onVideoEnded }: PlayerProps) => {
-  const videoId = useMemo(() => getYouTubeVideoId(videoUrl), [videoUrl]);
+  const isYoutubeLink = useMemo(() => !!getYouTubeVideoId(videoUrl), [videoUrl]);
+  const videoId = isYoutubeLink ? getYouTubeVideoId(videoUrl) : null;
   const [localVideoUrl, setLocalVideoUrl] = useState('');
   const playerRef = useRef<YouTubePlayer | null>(null);
   const isPlayerReady = useRef(false);
@@ -51,7 +52,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
 
   // Sync player with host's state for YouTube videos
   useEffect(() => {
-    if (!videoId) return; // Only sync for YouTube videos
+    if (!isYoutubeLink) return; // Only sync for YouTube videos
 
     const player = playerRef.current;
     if (!player || !playerState || canControl || !isPlayerReady.current) return;
@@ -73,7 +74,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
         setTimeout(() => { isSeekingRef.current = false; }, 1000);
     }
 
-  }, [playerState, canControl, videoId]);
+  }, [playerState, canControl, isYoutubeLink]);
 
 
   const onReady = (event: { target: YouTubePlayer }) => {
@@ -118,7 +119,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   };
 
   const renderContent = () => {
-    if (videoId) {
+    if (isYoutubeLink && videoId) {
       return (
         <YouTube
             key={videoId}
@@ -143,13 +144,13 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
       );
     }
 
-    if (videoUrl) {
+    if (!isYoutubeLink && videoUrl) {
       return (
         <iframe
           src={videoUrl}
           title="Shared Content"
           className="w-full h-full border-0"
-          allow="autoplay; encrypted-media; picture-in-picture"
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
           allowFullScreen
           sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-presentation"
         ></iframe>
