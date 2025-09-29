@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { database } from '@/lib/firebase';
 import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction } from 'firebase/database';
@@ -255,23 +255,22 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
 
   const updateSearchHistory = (query: string) => {
-      if(typeof window === 'undefined') return;
-      const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 10);
+      if(typeof window === 'undefined' || !query) return;
+      const newHistory = [query, ...searchHistory.filter(h => h.toLowerCase() !== query.toLowerCase())].slice(0, 10);
       setSearchHistory(newHistory);
       localStorage.setItem('youtubeSearchHistory', JSON.stringify(newHistory));
   };
 
-  const handleSearchSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!searchQuery || !isHost) return;
+  const performSearch = async (query: string) => {
+      if (!query || !isHost) return;
       
       setIsSearching(true);
       setSearchError(null);
       setSearchResults([]);
       try {
-        const results = await searchYoutube({ query: searchQuery });
+        const results = await searchYoutube({ query: query });
         setSearchResults(results.items);
-        updateSearchHistory(searchQuery);
+        updateSearchHistory(query);
       } catch (error) {
           console.error("YouTube search failed:", error);
           if (error instanceof Error && error.message.includes('YOUTUBE_API_KEY is not set')) {
@@ -283,17 +282,24 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
           setIsSearching(false);
       }
   };
+
+  const handleSearchSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    performSearch(searchQuery);
+  }
   
   const handleSelectVideo = (videoId: string) => {
       if (isHost) {
         onSetVideo(`https://www.youtube.com/watch?v=${videoId}`);
         setIsSearchOpen(false);
+        setSearchQuery('');
+        setSearchResults([]);
       }
   };
 
   const handleHistoryClick = (query: string) => {
       setSearchQuery(query);
-      handleSearchSubmit(new Event('submit') as unknown as React.FormEvent);
+      performSearch(query);
   };
 
   const onSetVideo = (url: string) => {
@@ -477,3 +483,5 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 };
 
 export default RoomClient;
+
+    
