@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Film, PlusCircle, LogIn, Loader2, Users, DoorOpen } from 'lucide-react';
 import useUserSession from '@/hooks/use-user-session';
 import { database } from '@/lib/firebase';
-import { ref, set, onValue, off } from 'firebase/database';
+import { ref, set, onValue, off, goOnline } from 'firebase/database';
 import Hearts from '@/components/shared/Hearts';
 
 interface RoomData {
@@ -28,6 +28,10 @@ export default function LobbyPage() {
   useEffect(() => {
     if (isLoaded && !user) {
       router.push('/');
+    }
+    if (isLoaded && user) {
+      // Connect to Firebase presence system when user is loaded
+      goOnline(database);
     }
   }, [isLoaded, user, router]);
 
@@ -104,7 +108,7 @@ export default function LobbyPage() {
             ردهة السينما
           </h1>
           <p className="mt-4 text-lg text-muted-foreground drop-shadow-md">
-            أنشئ غرفة جديدة أو انضم إلى الغرف النشطة
+            أنشئ غرفة مشاهدة خاصة أو انضم إلى أصدقائك.
           </p>
         </div>
 
@@ -117,7 +121,7 @@ export default function LobbyPage() {
                         <span>إنشاء غرفة جديدة</span>
                         </CardTitle>
                         <CardDescription>
-                        ابدأ تجربة مشاهدة جديدة مع من تحب.
+                        ابدأ تجربة مشاهدة جديدة واحصل على رمز لمشاركته.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -139,7 +143,7 @@ export default function LobbyPage() {
                         <span>الانضمام إلى غرفة</span>
                         </CardTitle>
                         <CardDescription>
-                        لديك رمز غرفة؟ أدخله أدناه للانضمام.
+                        لديك رمز غرفة؟ أدخله أدناه للانضمام فورًا.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -165,10 +169,10 @@ export default function LobbyPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <DoorOpen className="text-accent" />
-                            <span>الغرف النشطة</span>
+                            <span>الغرف المتاحة</span>
                         </CardTitle>
                         <CardDescription>
-                            انضم إلى أصدقائك في إحدى الغرف المتاحة.
+                            انضم إلى الأصدقاء في إحدى الغرف النشطة حاليًا.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -180,7 +184,7 @@ export default function LobbyPage() {
                                             <p className="font-bold text-foreground">غرفة {room.host}</p>
                                             <p className="text-sm text-muted-foreground flex items-center gap-2">
                                                 <Users className="w-4 h-4" />
-                                                {room.memberCount} {room.memberCount > 2 ? 'أعضاء' : 'عضو'}
+                                                {room.memberCount} {room.memberCount > 1 ? 'أعضاء' : 'عضو'}
                                             </p>
                                         </div>
                                         <Button size="sm" onClick={() => router.push(`/rooms/${room.id}`)}>
@@ -193,7 +197,7 @@ export default function LobbyPage() {
                         ) : (
                             <div className="text-center text-muted-foreground py-8">
                                 <p>لا توجد غرف نشطة حاليًا.</p>
-                                <p>كن أول من ينشئ غرفة!</p>
+                                <p>كن أول من ينشئ غرفة ويدعو أصدقائه!</p>
                             </div>
                         )}
                     </CardContent>
