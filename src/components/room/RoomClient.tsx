@@ -53,7 +53,7 @@ interface YouTubeVideo {
   };
 }
 
-const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwitchToPlayer, videoMode, onInviteClick }: { onSearchClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; onSwitchToPlayer: () => void; videoMode: boolean; onInviteClick: () => void; }) => {
+const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwitchToPlayer, videoMode, onInviteClick, isHost }: { onSearchClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; onSwitchToPlayer: () => void; videoMode: boolean; onInviteClick: () => void; isHost: boolean; }) => {
     const { user } = useUserSession();
     const avatar = PlaceHolderImages.find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id.startsWith('avatar'));
 
@@ -87,7 +87,7 @@ const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwi
                 </Button>
             </div>
 
-            {!videoMode && (
+            {!videoMode && isHost && (
                 <Button onClick={onSearchClick} variant="outline">
                     <Youtube className="me-2" />
                     بحث يوتيوب
@@ -415,33 +415,38 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                 onSwitchToPlayer={handleSwitchToPlayer}
                 videoMode={videoMode}
                 onInviteClick={handleOpenInviteDialog}
+                isHost={isHost}
             />
-            <main className="w-full max-w-4xl mx-auto flex-grow flex flex-col gap-4 px-4">
+            <main className="w-full max-w-7xl mx-auto flex-grow flex flex-col gap-4 px-4 pb-4">
                 {videoMode ? (
-                    <VideoConference />
+                   <div className="flex-grow rounded-lg overflow-hidden">
+                     <VideoConference />
+                   </div>
                 ) : (
-                    <>
-                        <Player 
-                            videoUrl={videoUrl} 
-                            onSetVideo={onSetVideo} 
-                            isHost={isHost} 
-                            onSearchClick={() => setIsSearchOpen(true)}
-                            playerState={playerState}
-                            onPlayerStateChange={handlePlayerStateChange}
-                        />
-                        <Seats 
-                            seatedMembers={seatedMembers}
-                            onTakeSeat={handleTakeSeat}
-                            onLeaveSeat={handleLeaveSeat}
-                            currentUser={user}
-                            isHost={isHost}
-                            onKickUser={handleKickUser}
-                        />
-                        <ViewerInfo members={viewers} />
-                        <div className="flex-grow min-h-0">
-                            <Chat roomId={roomId} user={user} isHost={isHost} />
+                    <div className="grid lg:grid-cols-3 gap-4 h-full min-h-0">
+                        <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
+                            <Player 
+                                videoUrl={videoUrl} 
+                                onSetVideo={onSetVideo} 
+                                isHost={isHost} 
+                                onSearchClick={() => setIsSearchOpen(true)}
+                                playerState={playerState}
+                                onPlayerStateChange={handlePlayerStateChange}
+                            />
+                            <Seats 
+                                seatedMembers={seatedMembers}
+                                onTakeSeat={handleTakeSeat}
+                                onLeaveSeat={handleLeaveSeat}
+                                currentUser={user}
+                                isHost={isHost}
+                                onKickUser={handleKickUser}
+                            />
+                            <ViewerInfo members={viewers} />
                         </div>
-                    </>
+                        <div className="min-h-0">
+                           <Chat roomId={roomId} user={user} isHost={isHost} />
+                        </div>
+                    </div>
                 )}
 
             </main>
@@ -572,3 +577,5 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 };
 
 export default RoomClient;
+
+    
