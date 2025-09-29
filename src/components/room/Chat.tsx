@@ -40,6 +40,7 @@ const Chat = ({ roomId, user, isHost }: ChatProps) => {
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const chatRef = ref(database(), `rooms/${roomId}/chat`);
@@ -52,10 +53,14 @@ const Chat = ({ roomId, user, isHost }: ChatProps) => {
   }, [roomId]);
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
-      if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight;
+    const viewport = viewportRef.current;
+    if (viewport) {
+      const isScrolledToBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 1;
+      
+      if(isScrolledToBottom) {
+        setTimeout(() => {
+            viewport.scrollTop = viewport.scrollHeight;
+        }, 0);
       }
     }
   }, [messages]);
@@ -118,7 +123,7 @@ const Chat = ({ roomId, user, isHost }: ChatProps) => {
         )}
       </CardHeader>
       <CardContent className="flex-grow overflow-hidden p-0">
-        <ScrollArea className="h-full" ref={scrollAreaRef}>
+        <ScrollArea className="h-full" ref={scrollAreaRef} viewportRef={viewportRef}>
            <div className="p-4 space-y-4">
             {messages.length > 0 ? messages.map((msg, index) => (
               <div key={index} className="flex flex-col">
