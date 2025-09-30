@@ -10,12 +10,12 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const GenerateAvatarInputSchema = z.object({
+const GenerateAvatarInputSchema = z.object({
   prompt: z.string().describe('A text description of the avatar to generate.'),
 });
 export type GenerateAvatarInput = z.infer<typeof GenerateAvatarInputSchema>;
 
-export const GenerateAvatarOutputSchema = z.object({
+const GenerateAvatarOutputSchema = z.object({
     imageUrl: z.string().describe("The data URI of the generated avatar image. Expected format: 'data:image/png;base64,<encoded_data>'."),
 });
 export type GenerateAvatarOutput = z.infer<typeof GenerateAvatarOutputSchema>;
