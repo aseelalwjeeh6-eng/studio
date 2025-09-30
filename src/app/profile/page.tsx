@@ -6,7 +6,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages, ImagePlaceholder } from '@/lib/placeholder-images';
-import { User as UserIcon, Loader2, CheckCircle, Image as ImageIcon, Sparkles, Wand2 } from 'lucide-react';
+import { User as UserIcon, Loader2, CheckCircle, Image as ImageIcon, Sparkles, Wand2, User, Wallpaper } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { upsertUser, getUserData } from '@/lib/firebase-service';
@@ -21,8 +21,9 @@ export default function ProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
   
-  const [selectedAvatarId, setSelectedAvatarId] = useState<string | undefined>(user?.avatarId);
-  const [isPending, startTransition] = useTransition();
+  const [currentAvatarId, setCurrentAvatarId] = useState<string | undefined>(user?.avatarId);
+  const [selectedImage, setSelectedImage] = useState<ImagePlaceholder | null>(null);
+  const [isAvatarUpdatePending, startAvatarUpdateTransition] = useTransition();
 
   const [generatedAvatars, setGeneratedAvatars] = useState<ImagePlaceholder[]>([]);
   const [avatarPrompt, setAvatarPrompt] = useState('');
@@ -35,7 +36,7 @@ export default function ProfilePage() {
       return;
     }
     if (user) {
-      setSelectedAvatarId(user.avatarId);
+      setCurrentAvatarId(user.avatarId);
       // Fetch full user data to get generated avatars
       getUserData(user.name).then(fullUser => {
         if (fullUser?.generatedAvatars) {
@@ -45,15 +46,24 @@ export default function ProfilePage() {
     }
   }, [isLoaded, user, router]);
 
-  const handleAvatarSelect = (avatarId: string) => {
-    if (!user) return;
-    startTransition(async () => {
-      setSelectedAvatarId(avatarId);
-      const updatedUser = { ...user, avatarId };
+  const handleUpdateAvatar = () => {
+    if (!user || !selectedImage) return;
+    startAvatarUpdateTransition(async () => {
+      setCurrentAvatarId(selectedImage.id);
+      const updatedUser = { ...user, avatarId: selectedImage.id };
       setUser(updatedUser);
       await upsertUser(updatedUser);
+      toast({ title: 'تم تحديث الصورة الرمزية بنجاح!' });
     });
   };
+  
+  const handleSetBackground = () => {
+    if (!selectedImage) return;
+    document.body.style.setProperty('--app-background-image', `url(${selectedImage.imageUrl})`);
+    localStorage.setItem('app-background-image', selectedImage.imageUrl);
+    toast({ title: 'تم تعيين الخلفية الجديدة!' });
+  };
+
 
   const handleGenerateAvatar = async () => {
     if (!avatarPrompt.trim() || !user) return;
@@ -69,17 +79,13 @@ export default function ProfilePage() {
 
         // Update local state immediately for responsiveness
         setGeneratedAvatars(prev => [newAvatar, ...prev]);
-        setSelectedAvatarId(newAvatar.id);
+        setSelectedImage(newAvatar);
         
-        // Update user session context
-        const updatedUser = { ...user, avatarId: newAvatar.id };
-        setUser(updatedUser);
-        
-        // Persist changes to Firebase
-        await upsertUser({ name: user.name, avatarId: newAvatar.id, newAvatar: newAvatar });
+        // Persist new generated avatar to user's collection in Firebase
+        await upsertUser({ name: user.name, newAvatar: newAvatar });
         
         setAvatarPrompt('');
-        toast({ title: "تم إنشاء الصورة الرمزية!", description: "تم تحديد صورتك الرمزية الجديدة." });
+        toast({ title: "تم إنشاء الصورة الرمزية!", description: "يمكنك الآن تعيينها كصورة رمزية أو خلفية." });
 
     } catch (error) {
         console.error("Avatar generation failed:", error);
@@ -90,7 +96,7 @@ export default function ProfilePage() {
   };
 
 
-  const currentAvatar = [...generatedAvatars, ...PlaceHolderImages].find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id === 'avatar1');
+  const currentAvatarDetails = [...generatedAvatars, ...PlaceHolderImages].find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id === 'avatar1');
   const avatarPlaceholders = PlaceHolderImages.filter(p => p.id.startsWith('avatar'));
 
   if (!isLoaded || !user) {
@@ -106,7 +112,7 @@ export default function ProfilePage() {
       <Card className="w-full max-w-sm bg-card/50 backdrop-blur-lg border-accent/20 text-center shadow-lg">
         <CardHeader className="flex flex-col items-center">
           <Avatar className="w-32 h-32 border-4 border-accent mb-4">
-            <AvatarImage src={currentAvatar?.imageUrl} alt={user.name} data-ai-hint={currentAvatar?.imageHint} />
+            <AvatarImage src={currentAvatarDetails?.imageUrl} alt={user.name} data-ai-hint={currentAvatarDetails?.imageHint} />
             <AvatarFallback className="bg-muted">
               <UserIcon className="w-16 h-16" />
             </AvatarFallback>
@@ -149,21 +155,43 @@ export default function ProfilePage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ImageIcon className="text-accent" />
-            <span>اختر صورتك الرمزية</span>
+            <span>اختر صورتك</span>
           </CardTitle>
           <CardDescription>
-            اختر الصورة التي تمثلك. ستظهر هذه الصورة للآخرين في غرف المشاهدة.
+            اختر صورة لتعيينها كصورة رمزية أو كخلفية للتطبيق.
           </CardDescription>
         </CardHeader>
         <CardContent>
+            {selectedImage && (
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 p-4 mb-6 bg-secondary/30 rounded-lg">
+                <Image
+                  src={selectedImage.imageUrl}
+                  alt={selectedImage.description}
+                  width={100}
+                  height={100}
+                  className="rounded-full aspect-square object-cover border-4 border-accent"
+                />
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button onClick={handleUpdateAvatar} disabled={isAvatarUpdatePending}>
+                    {isAvatarUpdatePending ? <Loader2 className="animate-spin me-2" /> : <User className="me-2" />}
+                    تعيين كصورة رمزية
+                  </Button>
+                  <Button onClick={handleSetBackground} variant="secondary">
+                     <Wallpaper className="me-2" />
+                    تعيين كخلفية
+                  </Button>
+                </div>
+              </div>
+            )}
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
              {[...generatedAvatars, ...avatarPlaceholders].map((avatar) => {
-              const isSelected = selectedAvatarId === avatar.id;
+              const isSelectedForAction = selectedImage?.id === avatar.id;
+              const isCurrentAvatar = currentAvatarId === avatar.id;
               return (
                 <div
                   key={avatar.id}
                   className="relative cursor-pointer group"
-                  onClick={() => handleAvatarSelect(avatar.id)}
+                  onClick={() => setSelectedImage(avatar)}
                 >
                   <Image
                     src={avatar.imageUrl}
@@ -172,17 +200,12 @@ export default function ProfilePage() {
                     height={100}
                     className={cn(
                       "rounded-full aspect-square object-cover border-4 transition-all",
-                      isSelected ? "border-accent ring-4 ring-accent/50" : "border-transparent group-hover:border-accent/50"
+                      isSelectedForAction ? "border-accent ring-4 ring-accent/50" : "border-transparent group-hover:border-accent/50"
                     )}
                     data-ai-hint={avatar.imageHint}
                   />
-                  {isPending && selectedAvatarId === avatar.id && (
-                    <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
-                      <Loader2 className="w-8 h-8 text-white animate-spin" />
-                    </div>
-                  )}
-                   {isSelected && !isPending && (
-                    <div className="absolute -top-1 -right-1 bg-accent rounded-full p-1 text-accent-foreground">
+                  {isCurrentAvatar && !isSelectedForAction && (
+                    <div className="absolute -top-1 -right-1 bg-primary rounded-full p-1 text-primary-foreground" title="الصورة الرمزية الحالية">
                         <CheckCircle className="w-5 h-5" />
                     </div>
                    )}

@@ -24,6 +24,7 @@
     --input: 20 18% 22%;
     --ring: 330 60% 60%;
     --radius: 1rem;
+    --app-background-image: none;
   }
 
   .dark {
@@ -77,6 +78,23 @@
   }
   body {
     @apply bg-background text-foreground;
+    position: relative;
+    z-index: 1;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-image: var(--app-background-image);
+    background-size: cover;
+    background-position: center;
+    filter: blur(10px) brightness(0.5);
+    z-index: -1;
+    transition: background-image 0.5s ease-in-out;
   }
 }
 

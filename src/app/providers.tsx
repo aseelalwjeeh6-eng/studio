@@ -18,6 +18,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     if (storedTheme) {
       setThemeState(storedTheme);
     }
+    const storedBg = localStorage.getItem('app-background-image');
+    if (storedBg) {
+      document.body.style.setProperty('--app-background-image', `url(${storedBg})`);
+    }
   }, []);
 
   const setTheme = (newTheme: Theme) => {
