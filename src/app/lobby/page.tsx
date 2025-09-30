@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlusCircle, LogIn, Loader2, Users, DoorOpen, Lock, Globe } from 'lucide-react';
 import useUserSession from '@/hooks/use-user-session';
-import { getDatabaseInstance } from '@/lib/firebase';
+import { database } from '@/lib/firebase';
 import { ref, onValue, off, goOnline } from 'firebase/database';
 import Hearts from '@/components/shared/Hearts';
 import { createRoom } from '@/lib/firebase-service';
@@ -25,7 +25,6 @@ export default function LobbyPage() {
   const [activeRooms, setActiveRooms] = useState<RoomData[]>([]);
   const router = useRouter();
   const { isLoaded, user } = useUserSession();
-  const database = getDatabaseInstance();
 
   useEffect(() => {
     if (isLoaded && !user) {

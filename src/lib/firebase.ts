@@ -14,11 +14,17 @@ const firebaseConfig = {
   "measurementId": "G-5G3W9K5153"
 };
 
-const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-const firestore: Firestore = getFirestore(app);
-const database: Database = getDatabase(app);
-let analytics: Analytics | undefined;
+let app: FirebaseApp;
+if (!getApps().length) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
+}
 
+const firestore = getFirestore(app);
+const database = getDatabase(app);
+
+let analytics: Analytics | undefined;
 if (typeof window !== 'undefined') {
   isSupported().then(supported => {
     if (supported) {
@@ -27,12 +33,5 @@ if (typeof window !== 'undefined') {
   });
 }
 
-function getFirestoreInstance(): Firestore {
-  return firestore;
-}
-
-function getDatabaseInstance(): Database {
-  return database;
-}
-
-export { app, getFirestoreInstance, getDatabaseInstance, analytics };
+// These are now direct exports, not functions.
+export { app, firestore, database, analytics };
