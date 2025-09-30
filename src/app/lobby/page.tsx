@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlusCircle, LogIn, Loader2, Users, DoorOpen, Lock, Globe } from 'lucide-react';
 import useUserSession from '@/hooks/use-user-session';
-import { database } from '@/lib/firebase';
+import { getDatabaseInstance } from '@/lib/firebase';
 import { ref, onValue, off, goOnline } from 'firebase/database';
 import Hearts from '@/components/shared/Hearts';
 import { createRoom } from '@/lib/firebase-service';
@@ -25,18 +25,20 @@ export default function LobbyPage() {
   const [activeRooms, setActiveRooms] = useState<RoomData[]>([]);
   const router = useRouter();
   const { isLoaded, user } = useUserSession();
+  const database = getDatabaseInstance();
 
   useEffect(() => {
     if (isLoaded && !user) {
       router.push('/');
     }
-    if (isLoaded && user) {
+    if (isLoaded && user && database) {
       // Connect to Firebase presence system when user is loaded
       goOnline(database);
     }
-  }, [isLoaded, user, router]);
+  }, [isLoaded, user, router, database]);
 
   useEffect(() => {
+    if (!database) return;
     const roomsRef = ref(database, 'rooms');
     const listener = onValue(roomsRef, (snapshot) => {
       const roomsData = snapshot.val();
@@ -61,7 +63,7 @@ export default function LobbyPage() {
 
     // Cleanup listener on component unmount
     return () => off(roomsRef, 'value', listener);
-  }, []);
+  }, [database]);
 
   const handleCreateRoom = async (isPrivate: boolean) => {
     if (!user || creatingRoomType) return;

@@ -1,6 +1,6 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getDatabase } from "firebase/database";
+import { getFirestore, Firestore } from "firebase/firestore";
+import { getDatabase, Database } from "firebase/database";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -16,18 +16,33 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-const firestore = getFirestore(app);
-const database = getDatabase(app);
 
-// Initialize Analytics if supported
-let analytics;
-if (typeof window !== 'undefined') {
-  isSupported().then(supported => {
-    if (supported) {
-      analytics = getAnalytics(app);
+let firestoreInstance: Firestore | null = null;
+let databaseInstance: Database | null = null;
+let analyticsInstance: any = null;
+
+const getFirestoreInstance = () => {
+    if (!firestoreInstance) {
+        firestoreInstance = getFirestore(app);
     }
-  });
+    return firestoreInstance;
 }
 
+const getDatabaseInstance = () => {
+    if (!databaseInstance) {
+        databaseInstance = getDatabase(app);
+    }
+    return databaseInstance;
+}
 
-export { app, firestore, database, analytics };
+const getAnalyticsInstance = async () => {
+    if (!analyticsInstance && typeof window !== 'undefined') {
+        const supported = await isSupported();
+        if (supported) {
+            analyticsInstance = getAnalytics(app);
+        }
+    }
+    return analyticsInstance;
+}
+
+export { app, getFirestoreInstance, getDatabaseInstance, getAnalyticsInstance };

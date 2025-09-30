@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, FormEvent, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { database } from '@/lib/firebase';
+import { getDatabaseInstance } from '@/lib/firebase';
 import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction, update, off } from 'firebase/database';
 import useUserSession from '@/hooks/use-user-session';
 import Player from './Player';
@@ -135,6 +135,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const { toast } = useToast();
   const { room } = useLiveKitRoom();
   const { localParticipant } = useLocalParticipant();
+  const database = getDatabaseInstance();
 
   const isHost = user?.name === hostName;
   const isModerator = user ? moderators.includes(user.name) : false;
@@ -173,7 +174,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       router.push('/');
       return;
     }
-    if (!isUserLoaded) {
+    if (!isUserLoaded || !database) {
       return;
     }
 
@@ -270,7 +271,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       }
       goOffline(database);
     };
-  }, [isUserLoaded, user, roomId, router, toast]);
+  }, [isUserLoaded, user, roomId, router, toast, database]);
 
   useEffect(() => {
       if(typeof window !== 'undefined') {
@@ -283,7 +284,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
   useEffect(() => {
     // When avatar changes, update RTDB
-    if (user && isSeated) {
+    if (user && isSeated && database) {
         const currentUserSeat = seatedMembers.find(m => m.name === user.name);
         if (currentUserSeat) {
             const updates: { [key: string]: any } = {};
@@ -292,10 +293,10 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             update(ref(database), updates);
         }
     }
-  }, [user?.avatarId, isSeated, roomId, user, seatedMembers]);
+  }, [user?.avatarId, isSeated, roomId, user, seatedMembers, database]);
     
   const handleTakeSeat = (seatId: number) => {
-      if (!user) return;
+      if (!user || !database) return;
       const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${seatId}`);
       const currentUserSeat = seatedMembers.find(m => m.name === user.name);
 
@@ -315,7 +316,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
 
   const handleLeaveSeat = () => {
-      if (!user) return;
+      if (!user || !database) return;
       const currentUserSeat = seatedMembers.find(m => m.name === user.name);
       if (currentUserSeat) {
           const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
@@ -365,7 +366,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }
   
   const handleAddToPlaylist = (video: YouTubeVideo) => {
-    if (!canControl) return;
+    if (!canControl || !database) return;
     const newPlaylistItem: PlaylistItem = {
       id: video.id.videoId,
       videoId: video.id.videoId,
@@ -392,17 +393,17 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
 
   const onSetVideo = useCallback((url: string) => {
-    if (canControl) {
+    if (canControl && database) {
       const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
       set(videoUrlRef, url);
       // Reset player state for new video
       const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
       set(playerStateRef, { isPlaying: true, seekTime: 0, timestamp: serverTimestamp() });
     }
-  }, [canControl, roomId]);
+  }, [canControl, roomId, database]);
   
   const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
-    if (canControl) {
+    if (canControl && database) {
       const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
       runTransaction(playerStateRef, (currentState) => {
         return { ...currentState, ...newState, timestamp: serverTimestamp() };
@@ -411,7 +412,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
 
   const handleVideoEnded = () => {
-    if (!canControl) return;
+    if (!canControl || !database) return;
   
     const currentVideoId = videoUrl.includes('v=') ? new URL(videoUrl).searchParams.get('v') : null;
   
@@ -441,7 +442,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
 
   const handleRemovePlaylistItem = (videoId: string) => {
-      if (!canControl) return;
+      if (!canControl || !database) return;
       const playlistRef = ref(database, `rooms/${roomId}/playlist`);
       const newPlaylist = playlist.filter(item => item.videoId !== videoId);
       set(playlistRef, newPlaylist);
@@ -449,7 +450,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   
 
   const handleKickUser = (userNameToKick: string) => {
-    if (!canControl || !userNameToKick) return;
+    if (!canControl || !userNameToKick || !database) return;
 
     const memberRef = ref(database, `rooms/${roomId}/members/${userNameToKick}`);
     set(memberRef, null);
@@ -481,7 +482,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
 
   const handlePromote = (userName: string) => {
-      if (!isHost) return;
+      if (!isHost || !database) return;
       const roomRef = ref(database, `rooms/${roomId}/moderators`);
       const newModerators = [...moderators, userName];
       set(roomRef, newModerators);
@@ -489,7 +490,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }
 
   const handleDemote = (userName: string) => {
-      if (!isHost) return;
+      if (!isHost || !database) return;
       const roomRef = ref(database, `rooms/${roomId}/moderators`);
       const newModerators = moderators.filter(mod => mod !== userName);
       set(roomRef, newModerators);
@@ -497,7 +498,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }
 
   const handleTransferHost = (userName: string) => {
-      if (!isHost) return;
+      if (!isHost || !database) return;
       const roomRef = ref(database, `rooms/${roomId}/host`);
       set(roomRef, userName);
       handleDemote(userName); // Demote from moderator if they were one
