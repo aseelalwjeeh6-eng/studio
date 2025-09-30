@@ -1,7 +1,7 @@
-import { initializeApp, getApp, getApps, FirebaseApp } from "firebase/app";
-import { getFirestore, Firestore } from "firebase/firestore";
-import { getDatabase, Database } from "firebase/database";
-import { getAnalytics, Analytics, isSupported } from "firebase/analytics";
+import { initializeApp, getApp, getApps } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getDatabase } from "firebase/database";
+import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
   "projectId": "studio-2181157065-1eeef",
@@ -14,17 +14,13 @@ const firebaseConfig = {
   "measurementId": "G-5G3W9K5153"
 };
 
-let app: FirebaseApp;
-if (!getApps().length) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApp();
-}
-
+// Initialize Firebase
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const firestore = getFirestore(app);
 const database = getDatabase(app);
 
-let analytics: Analytics | undefined;
+// Initialize Analytics if supported
+let analytics;
 if (typeof window !== 'undefined') {
   isSupported().then(supported => {
     if (supported) {
@@ -33,5 +29,5 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// These are now direct exports, not functions.
+
 export { app, firestore, database, analytics };
