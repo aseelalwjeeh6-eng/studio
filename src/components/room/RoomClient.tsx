@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, FormEvent, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { database } from '@/lib/firebase';
+import { getDatabaseInstance } from '@/lib/firebase';
 import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction, update } from 'firebase/database';
 import useUserSession from '@/hooks/use-user-session';
 import Player from './Player';
@@ -135,6 +135,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const { toast } = useToast();
   const { room } = useLiveKitRoom();
   const { localParticipant } = useLocalParticipant();
+  const database = getDatabaseInstance();
 
 
   const isHost = user?.name === hostName;

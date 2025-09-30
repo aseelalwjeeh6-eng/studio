@@ -1,4 +1,4 @@
-import { firestore, database } from './firebase';
+import { getFirestoreInstance, getDatabaseInstance } from './firebase';
 import {
   collection,
   doc,
@@ -52,6 +52,10 @@ export type AppNotification = {
     read?: boolean;
 }
 
+
+// Services
+const firestore = getFirestoreInstance();
+const database = getDatabaseInstance();
 
 // Collections
 const usersCol = collection(firestore, 'users');

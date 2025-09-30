@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { database } from '@/lib/firebase';
+import { getDatabaseInstance } from '@/lib/firebase';
 import { ref, onValue, push, set } from 'firebase/database';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -43,6 +43,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const database = getDatabaseInstance();
 
   useEffect(() => {
     const chatRef = ref(database, `rooms/${roomId}/chat`);

@@ -15,16 +15,30 @@ const firebaseConfig = {
 };
 
 const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const firestore: Firestore = getFirestore(app);
-const database: Database = getDatabase(app);
+let firestore: Firestore;
+let database: Database;
 let analytics: Analytics | undefined;
+
+function getFirestoreInstance(): Firestore {
+  if (!firestore) {
+    firestore = getFirestore(app);
+  }
+  return firestore;
+}
+
+function getDatabaseInstance(): Database {
+  if (!database) {
+    database = getDatabase(app);
+  }
+  return database;
+}
 
 if (typeof window !== 'undefined') {
   isSupported().then(supported => {
-    if (supported) {
+    if (supported && !analytics) {
       analytics = getAnalytics(app);
     }
   });
 }
 
-export { app, firestore, database, analytics };
+export { app, getFirestoreInstance, getDatabaseInstance, analytics };
