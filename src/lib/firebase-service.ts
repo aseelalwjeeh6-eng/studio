@@ -15,7 +15,7 @@ import {
   writeBatch,
   limit,
 } from 'firebase/firestore';
-import { ref, update, get, set } from 'firebase/database';
+import { ref, update, get, set, serverTimestamp } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 
@@ -256,14 +256,6 @@ export const sendRoomInvitation = async (senderName: string, recipientName: stri
     await updateDoc(recipientRef, {
         invitations: arrayUnion(newInvitation)
     });
-    
-    const roomRefRtdb = ref(database, `rooms/${roomId}`);
-    const roomSnapshot = await get(roomRefRtdb);
-    if (roomSnapshot.exists() && roomSnapshot.val().isPrivate) {
-        const updates: { [key: string]: any } = {};
-        updates[`authorizedMembers/${recipientName}`] = true;
-        await update(roomRefRtdb, updates);
-    }
 };
 
 // Get all notifications for a user
@@ -324,21 +316,18 @@ export const removeNotification = async (username: string, notificationId: strin
 type CreateRoomInput = {
     hostName: string;
     avatarId: string;
-    isPrivate: boolean;
 };
 
-export const createRoom = async ({ hostName, avatarId, isPrivate }: CreateRoomInput): Promise<string> => {
+export const createRoom = async ({ hostName, avatarId }: CreateRoomInput): Promise<string> => {
     const newRoomId = uuidv4();
     const roomRef = ref(database, `rooms/${newRoomId}`);
     
     const roomData = {
       host: hostName,
-      createdAt: Date.now(),
+      createdAt: serverTimestamp(),
       videoUrl: '',
       seatedMembers: {},
       members: {},
-      isPrivate: isPrivate,
-      authorizedMembers: isPrivate ? { [hostName]: true } : {},
       moderators: [],
       playlist: [],
     };

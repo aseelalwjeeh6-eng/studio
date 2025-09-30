@@ -189,17 +189,6 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       }
       
       const roomData = snapshot.val();
-      
-      // 2. Privacy check
-      if (roomData.isPrivate) {
-          const isUserHost = roomData.host === user!.name;
-          const isAuthorized = roomData.authorizedMembers && roomData.authorizedMembers[user!.name];
-          if (!isUserHost && !isAuthorized) {
-              toast({ title: 'غرفة خاصة', description: 'ليس لديك إذن لدخول هذه الغرفة.', variant: 'destructive' });
-              router.push('/lobby');
-              return;
-          }
-      }
 
       // If checks pass, proceed to set up the room
       setHostName(roomData.host);

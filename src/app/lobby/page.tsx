@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, LogIn, Loader2, Users, DoorOpen, Lock, Globe } from 'lucide-react';
+import { PlusCircle, LogIn, Loader2, Users, DoorOpen } from 'lucide-react';
 import useUserSession from '@/hooks/use-user-session';
 import { database } from '@/lib/firebase';
 import { ref, onValue, off, goOnline } from 'firebase/database';
@@ -16,12 +16,11 @@ interface RoomData {
   id: string;
   host: string;
   memberCount: number;
-  isPrivate?: boolean;
 }
 
 export default function LobbyPage() {
   const [roomId, setRoomId] = useState('');
-  const [creatingRoomType, setCreatingRoomType] = useState<null | 'public' | 'private'>(null);
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [activeRooms, setActiveRooms] = useState<RoomData[]>([]);
   const router = useRouter();
   const { isLoaded, user } = useUserSession();
@@ -49,10 +48,9 @@ export default function LobbyPage() {
               id: key,
               host: room.host,
               memberCount: memberCount,
-              isPrivate: room.isPrivate || false,
             };
           })
-          .filter(room => room.memberCount > 0 && !room.isPrivate); // Only show public rooms with members
+          .filter(room => room.memberCount > 0); 
         setActiveRooms(loadedRooms);
       } else {
         setActiveRooms([]);
@@ -63,23 +61,21 @@ export default function LobbyPage() {
     return () => off(roomsRef, 'value', listener);
   }, []);
 
-  const handleCreateRoom = async (isPrivate: boolean) => {
-    if (!user || creatingRoomType) return;
+  const handleCreateRoom = async () => {
+    if (!user || isCreatingRoom) return;
     
-    const roomType = isPrivate ? 'private' : 'public';
-    setCreatingRoomType(roomType);
+    setIsCreatingRoom(true);
 
     try {
       const newRoomId = await createRoom({
         hostName: user.name,
         avatarId: user.avatarId || 'avatar1',
-        isPrivate: isPrivate,
       });
       router.push(`/rooms/${newRoomId}`);
     } catch (error) {
       console.error("Failed to create room:", error);
       // Optionally show a toast message to the user
-      setCreatingRoomType(null);
+      setIsCreatingRoom(false);
     }
   };
 
@@ -107,7 +103,7 @@ export default function LobbyPage() {
             ردهة السينما
           </h1>
           <p className="mt-4 text-lg text-muted-foreground drop-shadow-md">
-            أنشئ غرفة مشاهدة خاصة أو انضم إلى أصدقائك.
+            أنشئ غرفة مشاهدة أو انضم إلى أصدقائك.
           </p>
         </div>
 
@@ -120,25 +116,17 @@ export default function LobbyPage() {
                         <span>إنشاء غرفة جديدة</span>
                         </CardTitle>
                         <CardDescription>
-                        اختر نوع الغرفة التي تريد إنشاءها.
+                        أنشئ غرفة مشاهدة عامة ودعُ أصدقائك.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="grid sm:grid-cols-2 gap-4">
-                        <Button onClick={() => handleCreateRoom(false)} className="h-12 text-lg bg-primary text-primary-foreground hover:bg-primary/90" disabled={!!creatingRoomType}>
-                        {creatingRoomType === 'public' ? (
+                    <CardContent>
+                        <Button onClick={handleCreateRoom} className="h-12 text-lg w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={isCreatingRoom}>
+                        {isCreatingRoom ? (
                             <Loader2 className="me-2 h-5 w-5 animate-spin" />
                         ) : (
-                            <Globe className="me-2 h-5 w-5" />
+                            <PlusCircle className="me-2 h-5 w-5" />
                         )}
-                         غرفة عامة
-                        </Button>
-                        <Button onClick={() => handleCreateRoom(true)} className="h-12 text-lg bg-accent text-accent-foreground hover:bg-accent/90" disabled={!!creatingRoomType}>
-                        {creatingRoomType === 'private' ? (
-                            <Loader2 className="me-2 h-5 w-5 animate-spin" />
-                        ) : (
-                            <Lock className="me-2 h-5 w-5" />
-                        )}
-                         غرفة خاصة
+                         إنشاء غرفة
                         </Button>
                     </CardContent>
                 </Card>
