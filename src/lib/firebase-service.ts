@@ -1,4 +1,6 @@
 import { getFirestoreInstance, getDatabaseInstance } from './firebase';
+import type { Firestore } from 'firebase/firestore';
+import type { Database } from 'firebase/database';
 import {
   collection,
   doc,
@@ -52,16 +54,11 @@ export type AppNotification = {
     read?: boolean;
 }
 
-
-// Services
-const firestore = getFirestoreInstance();
-const database = getDatabaseInstance();
-
-// Collections
-const usersCol = collection(firestore, 'users');
+const getUsersCollection = (db: Firestore) => collection(db, 'users');
 
 // Get a user document
 const getUserDoc = async (username: string) => {
+    const firestore = getFirestoreInstance();
     const userRef = doc(firestore, 'users', username);
     const userSnap = await getDoc(userRef);
     return { ref: userRef, snap: userSnap, data: userSnap.data() as AppUser | undefined };
@@ -87,6 +84,8 @@ export const upsertUser = async (user: { name: string, avatarId?: string }) => {
 
 // Search for users by name
 export const searchUsers = async (nameQuery: string, currentUsername: string): Promise<AppUser[]> => {
+    const firestore = getFirestoreInstance();
+    const usersCol = getUsersCollection(firestore);
     const q = query(
         usersCol,
         where('name', '>=', nameQuery),
@@ -101,9 +100,7 @@ export const searchUsers = async (nameQuery: string, currentUsername: string): P
     if (!currentUserData) return [];
     
     const friendNames = new Set(currentUserData.friends || []);
-    const requestSentNames = new Set((await getDocs(query(collection(firestore, 'users'), where('friendRequests', 'array-contains', { senderName: currentUsername, id: '', timestamp: 0 })))).docs.map(d => d.id));
-
-
+    
     querySnapshot.forEach((doc) => {
         const userData = doc.data() as AppUser;
         const sentRequestToMe = currentUserData.friendRequests?.some(req => req.senderName === userData.name);
@@ -144,6 +141,7 @@ export const sendFriendRequest = async (senderName: string, recipientName: strin
 
 // Accept a friend request
 export const acceptFriendRequest = async (senderName: string, recipientName: string) => {
+    const firestore = getFirestoreInstance();
     const { ref: senderRef } = await getUserDoc(senderName);
     const { ref: recipientRef, data: recipientData } = await getUserDoc(recipientName);
 
@@ -210,6 +208,7 @@ export const getFriends = async (username: string): Promise<AppUser[]> => {
 
 // Remove a friend
 export const removeFriend = async (currentUsername: string, friendNameToRemove: string) => {
+    const firestore = getFirestoreInstance();
     const { ref: currentUserRef } = await getUserDoc(currentUsername);
     const { ref: friendToRemoveRef } = await getUserDoc(friendNameToRemove);
 
@@ -227,6 +226,7 @@ export const removeFriend = async (currentUsername: string, friendNameToRemove: 
 
 // Send a room invitation
 export const sendRoomInvitation = async (senderName: string, recipientName: string, roomId: string, roomName: string) => {
+    const database = getDatabaseInstance();
     const { ref: recipientRef, data: recipientData } = await getUserDoc(recipientName);
 
     if (!recipientData) {
@@ -322,6 +322,7 @@ type CreateRoomInput = {
 };
 
 export const createRoom = async ({ hostName, avatarId, isPrivate }: CreateRoomInput): Promise<string> => {
+    const database = getDatabaseInstance();
     const newRoomId = uuidv4();
     const roomRef = ref(database, `rooms/${newRoomId}`);
     
