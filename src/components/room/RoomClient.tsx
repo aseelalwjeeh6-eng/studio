@@ -168,15 +168,15 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       router.push(`/rooms/${roomId}`);
   }
   
-  useEffect(() => {
+useEffect(() => {
     if (!isUserLoaded) return;
     if (!user) {
         router.push('/');
         return;
     }
 
-    let isMounted = true;
     const listeners: Unsubscribe[] = [];
+    let isMounted = true;
 
     const setupRoom = async () => {
         try {
@@ -208,25 +208,29 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                 setToken(tokenData.token);
             }
 
-            // Setup listeners after all checks and setup
             const membersRef = ref(database, `rooms/${roomId}/members`);
-            const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
-            const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
-            const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
-            const hostRef = ref(database, `rooms/${roomId}/host`);
-            const moderatorsRef = ref(database, `rooms/${roomId}/moderators`);
-            const playlistRef = ref(database, `rooms/${roomId}/playlist`);
-
             listeners.push(onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : [])));
+            
+            const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
             listeners.push(onValue(seatedMembersRef, (snapshot) => {
                 const seatedData = snapshot.val();
                 const seatedArray = seatedData ? Object.values(seatedData) : [];
                 setSeatedMembers(seatedArray as SeatedMember[]);
             }));
+            
+            const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
             listeners.push(onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || '')));
+
+            const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
             listeners.push(onValue(playerStateRef, (snapshot) => setPlayerState(snapshot.val())));
+
+            const hostRef = ref(database, `rooms/${roomId}/host`);
             listeners.push(onValue(hostRef, (snapshot) => setHostName(snapshot.val() || '')));
+
+            const moderatorsRef = ref(database, `rooms/${roomId}/moderators`);
             listeners.push(onValue(moderatorsRef, (snapshot) => setModerators(snapshot.val() || [])));
+
+            const playlistRef = ref(database, `rooms/${roomId}/playlist`);
             listeners.push(onValue(playlistRef, (snapshot) => setPlaylist(snapshot.val() ? Object.values(snapshot.val()) : [])));
 
         } catch (error) {
@@ -242,7 +246,6 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
     return () => {
         isMounted = false;
-        // Clean up all listeners
         listeners.forEach(unsubscribe => unsubscribe());
       
         if (user) {
@@ -252,19 +255,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                     set(memberRef, null);
                 }
             });
-            
-            const userSeat = seatedMembers.find(m => m.name === user.name);
-            if (userSeat) {
-                const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
-                get(seatRef).then(snapshot => {
-                    if (snapshot.exists() && snapshot.val().name === user.name) {
-                        set(seatRef, null);
-                    }
-                });
-            }
         }
-        // Don't call goOffline() if other tabs might be using it.
-        // Let onDisconnect handle presence.
     };
 }, [isUserLoaded, user, roomId, router, toast]);
 
@@ -278,7 +269,6 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }, []);
 
   useEffect(() => {
-    // When avatar changes, update RTDB
     if (user && isSeated) {
         const currentUserSeat = seatedMembers.find(m => m.name === user.name);
         if (currentUserSeat) {
@@ -373,7 +363,6 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     const newPlaylist = [...playlist, newPlaylistItem];
     set(playlistRef, newPlaylist);
     
-    // If nothing is playing, start playing the new video
     if (!videoUrl) {
       onSetVideo(`https://www.youtube.com/watch?v=${video.id.videoId}`);
     }
@@ -391,7 +380,6 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     if (canControl) {
       const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
       set(videoUrlRef, url);
-      // Reset player state for new video
       const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
       set(playerStateRef, { isPlaying: true, seekTime: 0, timestamp: serverTimestamp() });
     }
@@ -414,19 +402,16 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     const currentVideoIndex = playlist.findIndex(item => item.videoId === currentVideoId);
     const isLastVideo = currentVideoIndex === playlist.length - 1;
   
-    // Remove the video that just ended from the playlist
     const playlistRef = ref(database, `rooms/${roomId}/playlist`);
     const newPlaylist = playlist.filter(item => item.videoId !== currentVideoId);
     set(playlistRef, newPlaylist.length > 0 ? newPlaylist : null);
   
     if (newPlaylist.length > 0 && !isLastVideo) {
-      // Find the next video to play, which is now at the same index
       const nextVideo = newPlaylist[currentVideoIndex];
       if (nextVideo) {
         onSetVideo(`https://www.youtube.com/watch?v=${nextVideo.videoId}`);
       }
     } else {
-      // If it was the last video or playlist is now empty, clear the player
       onSetVideo('');
     }
   };
@@ -722,3 +707,5 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 };
 
 export default RoomClient;
+
+    
