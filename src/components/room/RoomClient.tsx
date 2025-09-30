@@ -678,7 +678,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             // First, ensure user is in the database for presence
             await goOnline(database);
             const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
-            const memberData = { name: user.name, avatarId: user.avatarId, joinedAt: serverTimestamp() };
+            const memberData = { name: user.name, avatarId: user.avatarId || 'avatar1', joinedAt: serverTimestamp() };
             await set(userRef, memberData);
             onDisconnect(userRef).remove();
 
