@@ -37,43 +37,31 @@
       "imageHint": "man portrait"
     },
     {
-      "id": "avatar7",
-      "description": "A placeholder for user avatar 7",
-      "imageUrl": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500&h=500&fit=crop",
-      "imageHint": "woman portrait"
+      "id": "bg1",
+      "description": "Romantic background with candles",
+      "imageUrl": "https://images.unsplash.com/photo-1597053530944-a5c86c3f3505?w=1920&h=1080&fit=crop",
+      "imageHint": "romantic candles"
     },
     {
-      "id": "avatar8",
-      "description": "A placeholder for user avatar 8",
-      "imageUrl": "https://images.unsplash.com/photo-1521119989659-a83eee488004?w=500&h=500&fit=crop",
-      "imageHint": "woman portrait"
+      "id": "bg2",
+      "description": "Romantic background with roses",
+      "imageUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1920&h=1080&fit=crop",
+      "imageHint": "romantic roses"
     },
     {
-      "id": "avatar9",
-      "description": "A placeholder for user avatar 9",
-      "imageUrl": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=500&h=500&fit=crop",
-      "imageHint": "woman model"
+      "id": "bg3",
+      "description": "Romantic background with heart shapes",
+      "imageUrl": "https://images.unsplash.com/photo-1581404134892-3834570342a3?w=1920&h=1080&fit=crop",
+      "imageHint": "romantic hearts"
     },
     {
-      "id": "avatar10",
-      "description": "A placeholder for user avatar 10",
-      "imageUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&h=500&fit=crop",
-      "imageHint": "woman fashion"
+      "id": "bg4",
+      "description": "Couple holding hands",
+      "imageUrl": "https://images.unsplash.com/photo-1458210452331-cad0383344d6?w=1920&h=1080&fit=crop",
+      "imageHint": "couple hands"
     },
     {
-      "id": "avatar11",
-      "description": "A placeholder for user avatar 11",
-      "imageUrl": "https://images.unsplash.com/photo-1522529599102-1a1c0d5d1a1c?w=500&h=500&fit=crop",
-      "imageHint": "man beach"
-    },
-    {
-      "id": "avatar12",
-      "description": "A placeholder for user avatar 12",
-      "imageUrl": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500&h=500&fit=crop",
-      "imageHint": "dog portrait"
-    },
-    {
-      "id": "movie-poster",
+      "id": "bg5",
       "description": "A placeholder for a movie poster",
       "imageUrl": "https://images.unsplash.com/photo-1511875762315-c773eb98eec0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxtb3ZpZSUyMHBvc3RlcnxlbnwwfHx8fDE3NTg4ODkwNzB8MA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "movie poster"

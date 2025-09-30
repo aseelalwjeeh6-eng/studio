@@ -46,21 +46,21 @@ export default function ProfilePage() {
     }
   }, [isLoaded, user, router]);
 
-  const handleUpdateAvatar = () => {
-    if (!user || !selectedImage) return;
+  const handleUpdateAvatar = (imageToUpdate: ImagePlaceholder) => {
+    if (!user || !imageToUpdate) return;
     startAvatarUpdateTransition(async () => {
-      setCurrentAvatarId(selectedImage.id);
-      const updatedUser = { ...user, avatarId: selectedImage.id };
+      setCurrentAvatarId(imageToUpdate.id);
+      const updatedUser = { ...user, avatarId: imageToUpdate.id };
       setUser(updatedUser);
       await upsertUser(updatedUser);
       toast({ title: 'تم تحديث الصورة الرمزية بنجاح!' });
     });
   };
   
-  const handleSetBackground = () => {
-    if (!selectedImage) return;
-    document.body.style.setProperty('--app-background-image', `url(${selectedImage.imageUrl})`);
-    localStorage.setItem('app-background-image', selectedImage.imageUrl);
+  const handleSetBackground = (imageToSet: ImagePlaceholder) => {
+    if (!imageToSet) return;
+    document.body.style.setProperty('--app-background-image', `url(${imageToSet.imageUrl})`);
+    localStorage.setItem('app-background-image', imageToSet.imageUrl);
     toast({ title: 'تم تعيين الخلفية الجديدة!' });
   };
 
@@ -97,7 +97,7 @@ export default function ProfilePage() {
 
 
   const currentAvatarDetails = [...generatedAvatars, ...PlaceHolderImages].find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id === 'avatar1');
-  const avatarPlaceholders = PlaceHolderImages.filter(p => p.id.startsWith('avatar'));
+  const allSelectableImages = [...generatedAvatars, ...PlaceHolderImages];
 
   if (!isLoaded || !user) {
     return (
@@ -169,14 +169,14 @@ export default function ProfilePage() {
                   alt={selectedImage.description}
                   width={100}
                   height={100}
-                  className="rounded-full aspect-square object-cover border-4 border-accent"
+                  className="rounded-lg aspect-square object-cover border-4 border-accent"
                 />
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <Button onClick={handleUpdateAvatar} disabled={isAvatarUpdatePending}>
+                  <Button onClick={() => handleUpdateAvatar(selectedImage)} disabled={isAvatarUpdatePending}>
                     {isAvatarUpdatePending ? <Loader2 className="animate-spin me-2" /> : <User className="me-2" />}
                     تعيين كصورة رمزية
                   </Button>
-                  <Button onClick={handleSetBackground} variant="secondary">
+                  <Button onClick={() => handleSetBackground(selectedImage)} variant="secondary">
                      <Wallpaper className="me-2" />
                     تعيين كخلفية
                   </Button>
@@ -184,27 +184,30 @@ export default function ProfilePage() {
               </div>
             )}
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
-             {[...generatedAvatars, ...avatarPlaceholders].map((avatar) => {
-              const isSelectedForAction = selectedImage?.id === avatar.id;
-              const isCurrentAvatar = currentAvatarId === avatar.id;
+             {allSelectableImages.map((img) => {
+              const isSelectedForAction = selectedImage?.id === img.id;
+              const isCurrentAvatar = currentAvatarId === img.id;
+              const isAvatar = img.id.startsWith('avatar') || img.id.startsWith('gen');
+
               return (
                 <div
-                  key={avatar.id}
+                  key={img.id}
                   className="relative cursor-pointer group"
-                  onClick={() => setSelectedImage(avatar)}
+                  onClick={() => setSelectedImage(img)}
                 >
                   <Image
-                    src={avatar.imageUrl}
-                    alt={avatar.description}
+                    src={img.imageUrl}
+                    alt={img.description}
                     width={100}
                     height={100}
                     className={cn(
-                      "rounded-full aspect-square object-cover border-4 transition-all",
+                      "w-full h-full aspect-square object-cover border-4 transition-all",
+                      isAvatar ? "rounded-full" : "rounded-lg",
                       isSelectedForAction ? "border-accent ring-4 ring-accent/50" : "border-transparent group-hover:border-accent/50"
                     )}
-                    data-ai-hint={avatar.imageHint}
+                    data-ai-hint={img.imageHint}
                   />
-                  {isCurrentAvatar && !isSelectedForAction && (
+                  {isCurrentAvatar && isAvatar && !isSelectedForAction && (
                     <div className="absolute -top-1 -right-1 bg-primary rounded-full p-1 text-primary-foreground" title="الصورة الرمزية الحالية">
                         <CheckCircle className="w-5 h-5" />
                     </div>
