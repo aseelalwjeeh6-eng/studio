@@ -14,35 +14,18 @@ const firebaseConfig = {
   "measurementId": "G-5G3W9K5153"
 };
 
-// Initialize Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-
-let firestoreInstance: Firestore | null = null;
-let databaseInstance: Database | null = null;
-let analyticsInstance: any = null;
-
-const getFirestoreInstance = () => {
-    if (!firestoreInstance) {
-        firestoreInstance = getFirestore(app);
-    }
-    return firestoreInstance;
-}
-
-const getDatabaseInstance = () => {
-    if (!databaseInstance) {
-        databaseInstance = getDatabase(app);
-    }
-    return databaseInstance;
-}
+const firestore = getFirestore(app);
+const database = getDatabase(app);
 
 const getAnalyticsInstance = async () => {
-    if (!analyticsInstance && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
         const supported = await isSupported();
         if (supported) {
-            analyticsInstance = getAnalytics(app);
+            return getAnalytics(app);
         }
     }
-    return analyticsInstance;
+    return null;
 }
 
-export { app, getFirestoreInstance, getDatabaseInstance, getAnalyticsInstance };
+export { app, firestore, database, getAnalyticsInstance };

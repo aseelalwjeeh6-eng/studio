@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getDatabaseInstance } from '@/lib/firebase';
+import { database } from '@/lib/firebase';
 import { ref, onValue, push, set, off } from 'firebase/database';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -43,10 +43,8 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const database = getDatabaseInstance();
 
   useEffect(() => {
-    if (!database) return;
     const chatRef = ref(database, `rooms/${roomId}/chat`);
     const listener = onValue(chatRef, (snapshot) => {
       const data = snapshot.val();
@@ -54,7 +52,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
       setMessages(loadedMessages.sort((a, b) => a.timestamp - b.timestamp));
     });
     return () => off(chatRef, 'value', listener);
-  }, [roomId, database]);
+  }, [roomId]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -73,7 +71,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim() === '' || isSending || !database) return;
+    if (newMessage.trim() === '' || isSending) return;
 
     setIsSending(true);
     try {
@@ -95,7 +93,6 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
   };
 
   const handleClearChat = async () => {
-    if (!database) return;
     const chatRef = ref(database, `rooms/${roomId}/chat`);
     await set(chatRef, null);
   };
