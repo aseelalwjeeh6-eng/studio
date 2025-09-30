@@ -15,7 +15,7 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const firestore: Firestore = getFirestore(app);
 const database: Database = getDatabase(app);
 let analytics: Analytics | undefined;
