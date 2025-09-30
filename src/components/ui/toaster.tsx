@@ -6,8 +6,10 @@ export function Toaster() {
   return (
     <HotToaster 
        toastOptions={{
-          className: 'bg-card text-card-foreground border border-accent/20',
-          duration: 5000,
+          className: 'bg-card text-card-foreground border border-accent/20 text-right',
+          style: {
+            minWidth: '300px',
+          },
         }}
     />
   )

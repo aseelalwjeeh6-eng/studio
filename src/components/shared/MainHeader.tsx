@@ -128,15 +128,10 @@ export function MainHeader() {
         toast({
           title: notif.title,
           description: notif.body,
-          action: (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => handleNotificationClick(notif)}
-            >
-              {notif.type === 'roomInvitation' ? 'انضمام' : 'عرض'}
-            </Button>
-          ),
+          action: {
+            label: notif.type === 'roomInvitation' ? 'انضمام' : 'عرض',
+            onClick: () => handleNotificationClick(notif)
+          },
         });
       });
     }
