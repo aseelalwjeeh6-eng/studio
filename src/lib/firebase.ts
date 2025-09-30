@@ -1,6 +1,6 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getDatabase, Database } from "firebase/database";
+import { initializeApp, getApp, getApps, FirebaseApp } from "firebase/app";
 import { getFirestore, Firestore } from "firebase/firestore";
+import { getDatabase, Database } from "firebase/database";
 import { getAnalytics, Analytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -14,8 +14,13 @@ const firebaseConfig = {
   "measurementId": "G-5G3W9K5153"
 };
 
-// Initialize Firebase
-const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+let app: FirebaseApp;
+if (!getApps().length) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
+}
+
 const firestore: Firestore = getFirestore(app);
 const database: Database = getDatabase(app);
 let analytics: Analytics | undefined;
