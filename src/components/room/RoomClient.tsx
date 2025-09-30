@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, FormEvent, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { database } from '@/lib/firebase';
-import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction, update, off } from 'firebase/database';
+import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction, update, off, Unsubscribe } from 'firebase/database';
 import useUserSession from '@/hooks/use-user-session';
 import Player from './Player';
 import Chat from './Chat';
@@ -169,97 +169,104 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }
   
   useEffect(() => {
-    if (isUserLoaded && !user) {
-      router.push('/');
-      return;
-    }
-    if (!isUserLoaded) {
-      return;
+    if (!isUserLoaded) return;
+    if (!user) {
+        router.push('/');
+        return;
     }
 
-    const roomRef = ref(database, `rooms/${roomId}`);
+    let isMounted = true;
+    const listeners: Unsubscribe[] = [];
 
     const setupRoom = async () => {
-      // 1. Pre-check room existence and authorization
-      const snapshot = await get(roomRef);
-      if (!snapshot.exists()) {
-        toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
-        router.push('/lobby');
-        return;
-      }
-      
-      const roomData = snapshot.val();
+        try {
+            const roomRef = ref(database, `rooms/${roomId}`);
+            const snapshot = await get(roomRef);
 
-      // If checks pass, proceed to set up the room
-      setHostName(roomData.host);
-      setIsLoading(false); // Stop loading, now we can render the room
+            if (!isMounted) return;
 
-      try {
-        await goOnline(database);
-        const userRef = ref(database, `rooms/${roomId}/members/${user!.name}`);
-        const memberData = { name: user!.name, avatarId: user!.avatarId, joinedAt: serverTimestamp() };
-        await set(userRef, memberData);
-        onDisconnect(userRef).remove();
-        
-        const userSeat = seatedMembers.find(m => m.name === user!.name);
-        if(userSeat) {
-            const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
-            onDisconnect(seatRef).remove();
+            if (!snapshot.exists()) {
+                toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
+                router.push('/lobby');
+                return;
+            }
+            
+            const roomData = snapshot.val();
+            setHostName(roomData.host);
+            setModerators(roomData.moderators || []);
+            setIsLoading(false);
+
+            await goOnline(database);
+            const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+            const memberData = { name: user.name, avatarId: user.avatarId, joinedAt: serverTimestamp() };
+            await set(userRef, memberData);
+            onDisconnect(userRef).remove();
+
+            const tokenResp = await fetch(`/api/livekit?room=${roomId}&username=${user.name}`);
+            const tokenData = await tokenResp.json();
+            if (isMounted) {
+                setToken(tokenData.token);
+            }
+
+            // Setup listeners after all checks and setup
+            const membersRef = ref(database, `rooms/${roomId}/members`);
+            const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
+            const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
+            const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
+            const hostRef = ref(database, `rooms/${roomId}/host`);
+            const moderatorsRef = ref(database, `rooms/${roomId}/moderators`);
+            const playlistRef = ref(database, `rooms/${roomId}/playlist`);
+
+            listeners.push(onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : [])));
+            listeners.push(onValue(seatedMembersRef, (snapshot) => {
+                const seatedData = snapshot.val();
+                const seatedArray = seatedData ? Object.values(seatedData) : [];
+                setSeatedMembers(seatedArray as SeatedMember[]);
+            }));
+            listeners.push(onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || '')));
+            listeners.push(onValue(playerStateRef, (snapshot) => setPlayerState(snapshot.val())));
+            listeners.push(onValue(hostRef, (snapshot) => setHostName(snapshot.val() || '')));
+            listeners.push(onValue(moderatorsRef, (snapshot) => setModerators(snapshot.val() || [])));
+            listeners.push(onValue(playlistRef, (snapshot) => setPlaylist(snapshot.val() ? Object.values(snapshot.val()) : [])));
+
+        } catch (error) {
+            console.error("Error setting up room:", error);
+            if (isMounted) {
+                toast({ title: 'خطأ في الغرفة', description: 'فشل الاتصال بالغرفة. يرجى المحاولة مرة أخرى.', variant: 'destructive' });
+                router.push('/lobby');
+            }
         }
-
-        const tokenResp = await fetch(`/api/livekit?room=${roomId}&username=${user!.name}`);
-        const tokenData = await tokenResp.json();
-        setToken(tokenData.token);
-      } catch (e) {
-        console.error("Failed to setup room or fetch LiveKit token", e);
-        toast({ title: 'خطأ في الاتصال', description: 'فشل الاتصال بالغرفة.', variant: 'destructive' });
-        router.push('/lobby');
-      }
     };
 
     setupRoom();
 
-    const membersRef = ref(database, `rooms/${roomId}/members`);
-    const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
-    const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
-    const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
-    const hostRef = ref(database, `rooms/${roomId}/host`);
-    const moderatorsRef = ref(database, `rooms/${roomId}/moderators`);
-    const playlistRef = ref(database, `rooms/${roomId}/playlist`);
-    
-    const onMembersValue = onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : []));
-    const onSeatedMembersValue = onValue(seatedMembersRef, (snapshot) => {
-        const seatedData = snapshot.val();
-        const seatedArray = seatedData ? Object.values(seatedData) : [];
-        setSeatedMembers(seatedArray as SeatedMember[]);
-    });
-    const onVideoUrlValue = onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || ''));
-    const onPlayerStateValue = onValue(playerStateRef, (snapshot) => setPlayerState(snapshot.val()));
-    const onHostValue = onValue(hostRef, (snapshot) => setHostName(snapshot.val() || ''));
-    const onModeratorsValue = onValue(moderatorsRef, (snapshot) => setModerators(snapshot.val() || []));
-    const onPlaylistValue = onValue(playlistRef, (snapshot) => setPlaylist(snapshot.val() ? Object.values(snapshot.val()) : []));
-
     return () => {
-      off(membersRef, 'value', onMembersValue);
-      off(seatedMembersRef, 'value', onSeatedMembersValue);
-      off(videoUrlRef, 'value', onVideoUrlValue);
-      off(playerStateRef, 'value', onPlayerStateValue);
-      off(hostRef, 'value', onHostValue);
-      off(moderatorsRef, 'value', onModeratorsValue);
-      off(playlistRef, 'value', onPlaylistValue);
+        isMounted = false;
+        // Clean up all listeners
+        listeners.forEach(unsubscribe => unsubscribe());
       
-      if (user) {
-        const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
-        const userSeat = seatedMembers.find(m => m.name === user.name);
-        if (userSeat) {
-            const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
-            set(seatRef, null);
+        if (user) {
+            const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+            get(memberRef).then(snapshot => {
+                if (snapshot.exists()) {
+                    set(memberRef, null);
+                }
+            });
+            
+            const userSeat = seatedMembers.find(m => m.name === user.name);
+            if (userSeat) {
+                const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
+                get(seatRef).then(snapshot => {
+                    if (snapshot.exists() && snapshot.val().name === user.name) {
+                        set(seatRef, null);
+                    }
+                });
+            }
         }
-        set(memberRef, null);
-      }
-      goOffline(database);
+        // Don't call goOffline() if other tabs might be using it.
+        // Let onDisconnect handle presence.
     };
-  }, [isUserLoaded, user, roomId, router, toast]);
+}, [isUserLoaded, user, roomId, router, toast]);
 
   useEffect(() => {
       if(typeof window !== 'undefined') {
