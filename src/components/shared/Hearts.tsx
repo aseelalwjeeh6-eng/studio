@@ -4,8 +4,15 @@ import React, { useEffect, useState } from 'react';
 
 const Hearts = () => {
   const [elements, setElements] = useState<{ id: number; style: React.CSSProperties; content: string }[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
     const createElements = () => {
       const newElements = Array.from({ length: 25 }).map((_, i) => {
         const isHeart = Math.random() > 0.3;
@@ -37,8 +44,11 @@ const Hearts = () => {
     
     createElements();
 
-    // No interval needed as the animation is infinite
-  }, []);
+  }, [isMounted]);
+
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
