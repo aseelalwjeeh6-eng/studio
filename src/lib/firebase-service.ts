@@ -315,12 +315,11 @@ export const removeNotification = async (username: string, notificationId: strin
 // Create a new room
 type CreateRoomInput = {
     hostName: string;
-    avatarId: string;
+    roomId: string;
 };
 
-export const createRoom = async ({ hostName, avatarId }: CreateRoomInput): Promise<string> => {
-    const newRoomId = uuidv4();
-    const roomRef = ref(database, `rooms/${newRoomId}`);
+export const createRoom = async ({ hostName, roomId }: CreateRoomInput): Promise<string> => {
+    const roomRef = ref(database, `rooms/${roomId}`);
     
     const roomData = {
       host: hostName,
@@ -334,7 +333,7 @@ export const createRoom = async ({ hostName, avatarId }: CreateRoomInput): Promi
 
     await set(roomRef, roomData);
 
-    return newRoomId;
+    return roomId;
 };
 
 export const getUserData = async (username: string): Promise<AppUser | null> => {

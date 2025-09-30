@@ -11,6 +11,7 @@ import { database } from '@/lib/firebase';
 import { ref, onValue, off, goOnline } from 'firebase/database';
 import Hearts from '@/components/shared/Hearts';
 import { createRoom } from '@/lib/firebase-service';
+import { v4 as uuidv4 } from 'uuid';
 
 interface RoomData {
   id: string;
@@ -65,16 +66,19 @@ export default function LobbyPage() {
     if (!user || isCreatingRoom) return;
     
     setIsCreatingRoom(true);
-
+    
+    const newRoomId = uuidv4();
+    router.push(`/rooms/${newRoomId}`);
+    
     try {
-      const newRoomId = await createRoom({
+      await createRoom({
         hostName: user.name,
-        avatarId: user.avatarId || 'avatar1',
+        roomId: newRoomId,
       });
-      router.push(`/rooms/${newRoomId}`);
     } catch (error) {
       console.error("Failed to create room:", error);
-      // Optionally show a toast message to the user
+      // Optionally show a toast message to the user and redirect back
+      router.push('/lobby');
       setIsCreatingRoom(false);
     }
   };
