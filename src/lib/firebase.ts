@@ -1,6 +1,6 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
-import { getFirestore, Firestore } from "firebase/firestore";
-import { getDatabase, Database } from "firebase/database";
+import { getFirestore } from "firebase/firestore";
+import { getDatabase } from "firebase/database";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -14,6 +14,7 @@ const firebaseConfig = {
   "measurementId": "G-5G3W9K5153"
 };
 
+// Initialize Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const firestore = getFirestore(app);
 const database = getDatabase(app);
@@ -27,5 +28,6 @@ const getAnalyticsInstance = async () => {
     }
     return null;
 }
+
 
 export { app, firestore, database, getAnalyticsInstance };
