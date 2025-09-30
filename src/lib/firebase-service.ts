@@ -97,7 +97,7 @@ export const searchUsers = async (nameQuery: string, currentUsername: string): P
     if (!currentUserData) return [];
     
     const friendNames = new Set(currentUserData.friends || []);
-    const requestSentNames = new Set((await getDocs(query(usersCol, where('friendRequests', 'array-contains', { senderName: currentUsername, id: '', timestamp: 0 })))).docs.map(d => d.id));
+    const requestSentNames = new Set((await getDocs(query(collection(getFirestoreInstance(), 'users'), where('friendRequests', 'array-contains', { senderName: currentUsername, id: '', timestamp: 0 })))).docs.map(d => d.id));
 
 
     querySnapshot.forEach((doc) => {
