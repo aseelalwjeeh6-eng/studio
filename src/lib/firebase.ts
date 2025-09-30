@@ -14,10 +14,11 @@ const firebaseConfig = {
   "measurementId": "G-5G3W9K5153"
 };
 
-// Initialize Firebase
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-const firestore = getFirestore(app);
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const database = getDatabase(app);
+// Firestore is not used, but we keep the export to avoid breaking other files if they import it.
+const firestore = getFirestore(app);
+
 
 const getAnalyticsInstance = async () => {
     if (typeof window !== 'undefined') {

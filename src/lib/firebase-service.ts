@@ -1,48 +1,44 @@
-import { firestore, database } from './firebase';
-import type { Firestore } from 'firebase/firestore';
+import { database } from './firebase';
 import type { Database } from 'firebase/database';
 import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
+  ref,
+  get,
+  set,
+  update,
+  push,
   query,
-  where,
-  writeBatch,
-  limit,
-} from 'firebase/firestore';
-import { ref, update, get, set, serverTimestamp } from 'firebase/database';
+  orderByChild,
+  equalTo,
+  serverTimestamp,
+  remove,
+} from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
-
 export interface RoomInvitation {
-    id: string;
-    roomId: string;
-    roomName: string;
-    senderName: string;
-    timestamp: number;
-    read?: boolean;
+  id: string;
+  roomId: string;
+  roomName: string;
+  senderName: string;
+  timestamp: number;
+  read?: boolean;
 }
 
 export interface FriendRequest {
-    id: string;
-    senderName: string;
-    timestamp: number;
-    read?: boolean;
+  id: string;
+  senderName: string;
+  timestamp: number;
+  read?: boolean;
 }
 
 export interface AppUser {
-    name: string;
-    avatarId?: string;
-    friends?: string[];
-    friendRequests?: FriendRequest[];
-    invitations?: RoomInvitation[];
-    generatedAvatars?: { id: string; imageUrl: string; description: string; imageHint: string; }[];
+  name: string;
+  avatarId?: string;
+  friends?: { [key: string]: boolean }; // Using object for easier add/remove
+  friendRequests?: { [key: string]: FriendRequest };
+  invitations?: { [key: string]: RoomInvitation };
+  generatedAvatars?: { id: string; imageUrl: string; description: string; imageHint: string }[];
 }
+
 
 export type AppNotification = {
     id: string;
@@ -55,66 +51,59 @@ export type AppNotification = {
     read?: boolean;
 }
 
-const getUsersCollection = (db: Firestore) => collection(db, 'users');
+const getUsersRef = (db: Database) => ref(db, 'users');
+const getUserRef = (db: Database, username: string) => ref(db, `users/${username}`);
 
-// Get a user document
-const getUserDoc = async (username: string) => {
-    const userRef = doc(firestore, 'users', username);
-    const userSnap = await getDoc(userRef);
-    return { ref: userRef, snap: userSnap, data: userSnap.data() as AppUser | undefined };
+const getUserData = async (username: string): Promise<AppUser | null> => {
+  const userRef = getUserRef(database, username);
+  const snapshot = await get(userRef);
+  return snapshot.exists() ? snapshot.val() : null;
 };
 
-// Create or update a user in the 'users' collection
 export const upsertUser = async (user: { name: string, avatarId?: string, newAvatar?: any }) => {
-    const { ref, snap } = await getUserDoc(user.name);
-    
-    if (!snap.exists()) {
-        await setDoc(ref, { 
-            name: user.name, 
-            avatarId: user.avatarId || 'avatar1',
-            friends: [],
-            friendRequests: [],
-            invitations: [],
-            generatedAvatars: user.newAvatar ? [user.newAvatar] : []
-        });
-    } else {
-        const updates: any = {};
-        if (user.avatarId) {
-            updates.avatarId = user.avatarId;
-        }
-        if (user.newAvatar) {
-            updates.generatedAvatars = arrayUnion(user.newAvatar);
-        }
+  const userRef = getUserRef(database, user.name);
+  const snapshot = await get(userRef);
 
-        if (Object.keys(updates).length > 0) {
-            await updateDoc(ref, updates);
-        }
+  if (!snapshot.exists()) {
+    await set(userRef, {
+      name: user.name,
+      avatarId: user.avatarId || 'avatar1',
+      generatedAvatars: user.newAvatar ? [user.newAvatar] : []
+    });
+  } else {
+    const updates: any = {};
+    if (user.avatarId) {
+      updates.avatarId = user.avatarId;
     }
+    if (user.newAvatar) {
+        const existingAvatars = snapshot.val().generatedAvatars || [];
+        updates.generatedAvatars = [...existingAvatars, user.newAvatar];
+    }
+    if (Object.keys(updates).length > 0) {
+      await update(userRef, updates);
+    }
+  }
 };
 
-// Search for users by name
 export const searchUsers = async (nameQuery: string, currentUsername: string): Promise<AppUser[]> => {
-    const usersCol = getUsersCollection(firestore);
-    const q = query(
-        usersCol,
-        where('name', '>=', nameQuery),
-        where('name', '<=', nameQuery + '\uf8ff'),
-        limit(10)
-    );
-
-    const querySnapshot = await getDocs(q);
+    const usersRef = getUsersRef(database);
+    const usersQuery = query(usersRef, orderByChild('name'), equalTo(nameQuery));
+    const snapshot = await get(usersQuery);
+    
     const users: AppUser[] = [];
-    
-    const { data: currentUserData } = await getUserDoc(currentUsername);
-    if (!currentUserData) return [];
-    
-    const friendNames = new Set(currentUserData.friends || []);
-    
-    querySnapshot.forEach((doc) => {
-        const userData = doc.data() as AppUser;
-        const sentRequestToMe = currentUserData.friendRequests?.some(req => req.senderName === userData.name);
+    if (!snapshot.exists()) {
+        return [];
+    }
 
-        if (userData.name !== currentUsername && !friendNames.has(userData.name) && !sentRequestToMe) {
+    const currentUserData = await getUserData(currentUsername);
+    if (!currentUserData) return [];
+
+    const friendNames = new Set(Object.keys(currentUserData.friends || {}));
+    const receivedRequests = new Set(Object.values(currentUserData.friendRequests || {}).map(req => req.senderName));
+    
+    snapshot.forEach((childSnapshot) => {
+        const userData = childSnapshot.val() as AppUser;
+        if (userData.name !== currentUsername && !friendNames.has(userData.name) && !receivedRequests.has(userData.name)) {
             users.push(userData);
         }
     });
@@ -122,151 +111,121 @@ export const searchUsers = async (nameQuery: string, currentUsername: string): P
     return users;
 };
 
-// Send a friend request
 export const sendFriendRequest = async (senderName: string, recipientName: string) => {
-    const { ref: recipientRef, data: recipientData } = await getUserDoc(recipientName);
+    const recipientData = await getUserData(recipientName);
 
-    if (!recipientData) {
-        throw new Error('المستخدم الذي تحاول إضافته غير موجود.');
-    }
-    if (recipientData.friendRequests?.some(req => req.senderName === senderName)) {
+    if (!recipientData) throw new Error('المستخدم الذي تحاول إضافته غير موجود.');
+    if (recipientData.friendRequests && Object.values(recipientData.friendRequests).some(req => req.senderName === senderName)) {
         throw new Error('لقد أرسلت طلب صداقة لهذا المستخدم بالفعل.');
     }
-    if (recipientData.friends?.includes(senderName)) {
+    if (recipientData.friends && recipientData.friends[senderName]) {
         throw new Error('هذا المستخدم صديقك بالفعل.');
     }
 
+    const recipientRequestsRef = ref(database, `users/${recipientName}/friendRequests`);
+    const newRequestRef = push(recipientRequestsRef);
     const newRequest: FriendRequest = {
-        id: new Date().getTime().toString(),
+        id: newRequestRef.key!,
         senderName,
         timestamp: Date.now(),
         read: false,
     };
-
-    await updateDoc(recipientRef, {
-        friendRequests: arrayUnion(newRequest)
-    });
+    await set(newRequestRef, newRequest);
 };
 
-// Accept a friend request
 export const acceptFriendRequest = async (senderName: string, recipientName: string) => {
-    const { ref: senderRef } = await getUserDoc(senderName);
-    const { ref: recipientRef, data: recipientData } = await getUserDoc(recipientName);
+    const recipientData = await getUserData(recipientName);
+    if (!recipientData || !recipientData.friendRequests) return;
 
-    const requestToRemove = recipientData?.friendRequests?.find(req => req.senderName === senderName);
+    const reqKey = Object.keys(recipientData.friendRequests).find(
+        key => recipientData.friendRequests![key].senderName === senderName
+    );
 
-    const batch = writeBatch(firestore);
+    if (!reqKey) return;
 
-    batch.update(recipientRef, {
-        friends: arrayUnion(senderName),
-        friendRequests: arrayRemove(requestToRemove)
-    });
-    batch.update(senderRef, {
-        friends: arrayUnion(recipientName)
-    });
+    const updates: { [key: string]: any } = {};
+    updates[`/users/${recipientName}/friends/${senderName}`] = true;
+    updates[`/users/${senderName}/friends/${recipientName}`] = true;
+    updates[`/users/${recipientName}/friendRequests/${reqKey}`] = null; // Remove request
 
-    await batch.commit();
+    await update(ref(database), updates);
 };
 
-// Reject a friend request
 export const rejectFriendRequest = async (senderName: string, recipientName: string) => {
-    const { ref: recipientRef, data: recipientData } = await getUserDoc(recipientName);
-    const requestToRemove = recipientData?.friendRequests?.find(req => req.senderName === senderName);
-    if (requestToRemove) {
-        await updateDoc(recipientRef, {
-            friendRequests: arrayRemove(requestToRemove)
-        });
+    const recipientData = await getUserData(recipientName);
+    if (!recipientData || !recipientData.friendRequests) return;
+
+    const reqKey = Object.keys(recipientData.friendRequests).find(
+        key => recipientData.friendRequests![key].senderName === senderName
+    );
+
+    if (reqKey) {
+        await remove(ref(database, `users/${recipientName}/friendRequests/${reqKey}`));
     }
 };
 
-// Get pending friend requests for a user
 export const getFriendRequests = async (username: string): Promise<AppUser[]> => {
-    const { data } = await getUserDoc(username);
-    if (!data || !data.friendRequests || data.friendRequests.length === 0) {
-        return [];
+    const userData = await getUserData(username);
+    if (!userData || !userData.friendRequests) return [];
+    
+    const requestSenders = Object.values(userData.friendRequests).map(req => req.senderName);
+    const users: AppUser[] = [];
+    for (const sender of requestSenders) {
+        const senderData = await getUserData(sender);
+        if (senderData) users.push(senderData);
     }
-
-    const requestUsers: AppUser[] = [];
-    for (const request of data.friendRequests) {
-        const { data: requestUserData } = await getUserDoc(request.senderName);
-        if (requestUserData) {
-            requestUsers.push(requestUserData);
-        }
-    }
-    return requestUsers;
+    return users;
 };
 
-// Get a user's friends
 export const getFriends = async (username: string): Promise<AppUser[]> => {
-    const { data } = await getUserDoc(username);
-    if (!data || !data.friends || !data.friends.length) {
-        return [];
-    }
+    const userData = await getUserData(username);
+    if (!userData || !userData.friends) return [];
 
-    const friendUsers: AppUser[] = [];
-    for (const name of data.friends) {
-        const { data: friendUserData } = await getUserDoc(name);
-        if (friendUserData) {
-            friendUsers.push(friendUserData);
-        }
+    const friendNames = Object.keys(userData.friends);
+    const users: AppUser[] = [];
+    for (const name of friendNames) {
+        const friendData = await getUserData(name);
+        if (friendData) users.push(friendData);
     }
-    return friendUsers;
+    return users;
 };
 
-
-// Remove a friend
 export const removeFriend = async (currentUsername: string, friendNameToRemove: string) => {
-    const { ref: currentUserRef } = await getUserDoc(currentUsername);
-    const { ref: friendToRemoveRef } = await getUserDoc(friendNameToRemove);
-
-    const batch = writeBatch(firestore);
-
-    batch.update(currentUserRef, {
-        friends: arrayRemove(friendNameToRemove)
-    });
-    batch.update(friendToRemoveRef, {
-        friends: arrayRemove(currentUsername)
-    });
-
-    await batch.commit();
+    const updates: { [key: string]: any } = {};
+    updates[`/users/${currentUsername}/friends/${friendNameToRemove}`] = null;
+    updates[`/users/${friendNameToRemove}/friends/${currentUsername}`] = null;
+    await update(ref(database), updates);
 };
 
-// Send a room invitation
 export const sendRoomInvitation = async (senderName: string, recipientName: string, roomId: string, roomName: string) => {
-    const { ref: recipientRef, data: recipientData } = await getUserDoc(recipientName);
+    const recipientData = await getUserData(recipientName);
+    if (!recipientData) throw new Error('المستخدم الذي تحاول دعوته غير موجود.');
 
-    if (!recipientData) {
-        throw new Error('المستخدم الذي تحاول دعوته غير موجود.');
+    if (recipientData.invitations && Object.values(recipientData.invitations).some(inv => inv.roomId === roomId)) {
+        throw new Error(`لقد قمت بالفعل بدعوة ${recipientName} إلى هذه الغرفة.`);
     }
 
+    const invitationsRef = ref(database, `users/${recipientName}/invitations`);
+    const newInvitationRef = push(invitationsRef);
     const newInvitation: RoomInvitation = {
-        id: new Date().getTime().toString(),
+        id: newInvitationRef.key!,
         roomId,
         roomName,
         senderName,
         timestamp: Date.now(),
         read: false,
     };
-    
-    const hasExistingInvitation = recipientData.invitations?.some(inv => inv.roomId === roomId && inv.senderName === senderName);
-    if (hasExistingInvitation) {
-        throw new Error(`لقد قمت بالفعل بدعوة ${recipientName} إلى هذه الغرفة.`);
-    }
-
-    await updateDoc(recipientRef, {
-        invitations: arrayUnion(newInvitation)
-    });
+    await set(newInvitationRef, newInvitation);
 };
 
-// Get all notifications for a user
 export const getNotifications = async (username: string): Promise<AppNotification[]> => {
-    const { data } = await getUserDoc(username);
+    const data = await getUserData(username);
     if (!data) return [];
 
     const notifications: AppNotification[] = [];
 
     if (data.friendRequests) {
-        for (const req of data.friendRequests) {
+        Object.values(data.friendRequests).forEach(req => {
             notifications.push({
                 id: req.id,
                 type: 'friendRequest',
@@ -276,11 +235,11 @@ export const getNotifications = async (username: string): Promise<AppNotificatio
                 timestamp: req.timestamp,
                 read: req.read,
             });
-        }
+        });
     }
 
     if (data.invitations) {
-        for (const inv of data.invitations) {
+        Object.values(data.invitations).forEach(inv => {
             notifications.push({
                 id: inv.id,
                 type: 'roomInvitation',
@@ -291,28 +250,33 @@ export const getNotifications = async (username: string): Promise<AppNotificatio
                 timestamp: inv.timestamp,
                 read: inv.read
             });
-        }
+        });
     }
 
     return notifications;
 };
 
-// Remove a specific notification
 export const removeNotification = async (username: string, notificationId: string) => {
-    const { ref, data } = await getUserDoc(username);
-    if (!data) return;
+    const userData = await getUserData(username);
+    if (!userData) return;
 
-    const newInvitations = data.invitations?.filter(inv => inv.id !== notificationId) ?? [];
-    const newFriendRequests = data.friendRequests?.filter(req => req.id !== notificationId) ?? [];
-
-    await updateDoc(ref, {
-        invitations: newInvitations,
-        friendRequests: newFriendRequests
-    });
+    if (userData.invitations && userData.invitations[notificationId]) {
+        await remove(ref(database, `users/${username}/invitations/${notificationId}`));
+    } else if (userData.friendRequests && userData.friendRequests[notificationId]) {
+        await remove(ref(database, `users/${username}/friendRequests/${notificationId}`));
+    } else {
+        // Fallback for old structure if necessary
+         if (userData.invitations) {
+            const key = Object.keys(userData.invitations).find(k => userData.invitations![k].id === notificationId);
+            if(key) await remove(ref(database, `users/${username}/invitations/${key}`));
+        }
+        if (userData.friendRequests) {
+            const key = Object.keys(userData.friendRequests).find(k => userData.friendRequests![k].id === notificationId);
+            if(key) await remove(ref(database, `users/${username}/friendRequests/${key}`));
+        }
+    }
 };
 
-
-// Create a new room
 type CreateRoomInput = {
     hostName: string;
     roomId: string;
@@ -336,7 +300,5 @@ export const createRoom = async ({ hostName, roomId }: CreateRoomInput): Promise
     return roomId;
 };
 
-export const getUserData = async (username: string): Promise<AppUser | null> => {
-    const { data } = await getUserDoc(username);
-    return data || null;
-}
+
+export { getUserData };
