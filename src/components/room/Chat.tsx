@@ -45,7 +45,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const chatRef = ref(database(), `rooms/${roomId}/chat`);
+    const chatRef = ref(database, `rooms/${roomId}/chat`);
     const listener = onValue(chatRef, (snapshot) => {
       const data = snapshot.val();
       const loadedMessages: Message[] = data ? Object.values(data) : [];
@@ -77,7 +77,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
     try {
         const { filteredText } = await filterProfanity({ text: newMessage });
 
-        const chatRef = ref(database(), `rooms/${roomId}/chat`);
+        const chatRef = ref(database, `rooms/${roomId}/chat`);
         const messageData = {
             sender: user.name,
             text: filteredText,
@@ -93,7 +93,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
   };
 
   const handleClearChat = async () => {
-    const chatRef = ref(database(), `rooms/${roomId}/chat`);
+    const chatRef = ref(database, `rooms/${roomId}/chat`);
     await set(chatRef, null);
   };
 

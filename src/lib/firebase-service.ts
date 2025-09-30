@@ -1,4 +1,4 @@
-import { firestore as getFirestoreInstance, database as getDatabaseInstance } from './firebase';
+import { firestore, database } from './firebase';
 import {
   collection,
   doc,
@@ -54,11 +54,11 @@ export type AppNotification = {
 
 
 // Collections
-const usersCol = collection(getFirestoreInstance(), 'users');
+const usersCol = collection(firestore, 'users');
 
 // Get a user document
 const getUserDoc = async (username: string) => {
-    const userRef = doc(getFirestoreInstance(), 'users', username);
+    const userRef = doc(firestore, 'users', username);
     const userSnap = await getDoc(userRef);
     return { ref: userRef, snap: userSnap, data: userSnap.data() as AppUser | undefined };
 };
@@ -97,7 +97,7 @@ export const searchUsers = async (nameQuery: string, currentUsername: string): P
     if (!currentUserData) return [];
     
     const friendNames = new Set(currentUserData.friends || []);
-    const requestSentNames = new Set((await getDocs(query(collection(getFirestoreInstance(), 'users'), where('friendRequests', 'array-contains', { senderName: currentUsername, id: '', timestamp: 0 })))).docs.map(d => d.id));
+    const requestSentNames = new Set((await getDocs(query(collection(firestore, 'users'), where('friendRequests', 'array-contains', { senderName: currentUsername, id: '', timestamp: 0 })))).docs.map(d => d.id));
 
 
     querySnapshot.forEach((doc) => {
@@ -145,7 +145,7 @@ export const acceptFriendRequest = async (senderName: string, recipientName: str
 
     const requestToRemove = recipientData?.friendRequests?.find(req => req.senderName === senderName);
 
-    const batch = writeBatch(getFirestoreInstance());
+    const batch = writeBatch(firestore);
 
     batch.update(recipientRef, {
         friends: arrayUnion(senderName),
@@ -209,7 +209,7 @@ export const removeFriend = async (currentUsername: string, friendNameToRemove: 
     const { ref: currentUserRef } = await getUserDoc(currentUsername);
     const { ref: friendToRemoveRef } = await getUserDoc(friendNameToRemove);
 
-    const batch = writeBatch(getFirestoreInstance());
+    const batch = writeBatch(firestore);
 
     batch.update(currentUserRef, {
         friends: arrayRemove(friendNameToRemove)
@@ -247,7 +247,7 @@ export const sendRoomInvitation = async (senderName: string, recipientName: stri
         invitations: arrayUnion(newInvitation)
     });
     
-    const roomRefRtdb = ref(getDatabaseInstance(), `rooms/${roomId}`);
+    const roomRefRtdb = ref(database, `rooms/${roomId}`);
     const roomSnapshot = await get(roomRefRtdb);
     if (roomSnapshot.exists() && roomSnapshot.val().isPrivate) {
         const updates: { [key: string]: any } = {};
@@ -319,7 +319,7 @@ type CreateRoomInput = {
 
 export const createRoom = async ({ hostName, avatarId, isPrivate }: CreateRoomInput): Promise<string> => {
     const newRoomId = uuidv4();
-    const roomRef = ref(getDatabaseInstance(), `rooms/${newRoomId}`);
+    const roomRef = ref(database, `rooms/${newRoomId}`);
     
     const roomData = {
       host: hostName,

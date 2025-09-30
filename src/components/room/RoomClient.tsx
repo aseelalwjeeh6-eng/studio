@@ -178,7 +178,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       return;
     }
 
-    const db = database();
+    const db = database;
     const roomRef = ref(db, `rooms/${roomId}`);
 
     const setupRoom = async () => {
@@ -291,14 +291,14 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             const updates: { [key: string]: any } = {};
             updates[`/rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}/avatarId`] = user.avatarId;
             updates[`/rooms/${roomId}/members/${user.name}/avatarId`] = user.avatarId;
-            update(ref(database()), updates);
+            update(ref(database), updates);
         }
     }
   }, [user?.avatarId, isSeated, roomId, user, seatedMembers]);
     
   const handleTakeSeat = (seatId: number) => {
       if (!user) return;
-      const db = database();
+      const db = database;
       const seatRef = ref(db, `rooms/${roomId}/seatedMembers/${seatId}`);
       const currentUserSeat = seatedMembers.find(m => m.name === user.name);
 
@@ -321,7 +321,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       if (!user) return;
       const currentUserSeat = seatedMembers.find(m => m.name === user.name);
       if (currentUserSeat) {
-          const seatRef = ref(database(), `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
+          const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
           set(seatRef, null);
       }
   };
@@ -376,7 +376,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       thumbnail: video.snippet.thumbnails.medium.url,
     };
 
-    const playlistRef = ref(database(), `rooms/${roomId}/playlist`);
+    const playlistRef = ref(database, `rooms/${roomId}/playlist`);
     const newPlaylist = [...playlist, newPlaylistItem];
     set(playlistRef, newPlaylist);
     
@@ -396,7 +396,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
   const onSetVideo = useCallback((url: string) => {
     if (canControl) {
-      const db = database();
+      const db = database;
       const videoUrlRef = ref(db, `rooms/${roomId}/videoUrl`);
       set(videoUrlRef, url);
       // Reset player state for new video
@@ -407,7 +407,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   
   const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
     if (canControl) {
-      const playerStateRef = ref(database(), `rooms/${roomId}/playerState`);
+      const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
       runTransaction(playerStateRef, (currentState) => {
         return { ...currentState, ...newState, timestamp: serverTimestamp() };
       });
@@ -423,7 +423,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     const isLastVideo = currentVideoIndex === playlist.length - 1;
   
     // Remove the video that just ended from the playlist
-    const playlistRef = ref(database(), `rooms/${roomId}/playlist`);
+    const playlistRef = ref(database, `rooms/${roomId}/playlist`);
     const newPlaylist = playlist.filter(item => item.videoId !== currentVideoId);
     set(playlistRef, newPlaylist.length > 0 ? newPlaylist : null);
   
@@ -446,7 +446,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
   const handleRemovePlaylistItem = (videoId: string) => {
       if (!canControl) return;
-      const playlistRef = ref(database(), `rooms/${roomId}/playlist`);
+      const playlistRef = ref(database, `rooms/${roomId}/playlist`);
       const newPlaylist = playlist.filter(item => item.videoId !== videoId);
       set(playlistRef, newPlaylist);
   };
@@ -455,7 +455,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const handleKickUser = (userNameToKick: string) => {
     if (!canControl || !userNameToKick) return;
 
-    const db = database();
+    const db = database;
     const memberRef = ref(db, `rooms/${roomId}/members/${userNameToKick}`);
     set(memberRef, null);
 
@@ -487,7 +487,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
   const handlePromote = (userName: string) => {
       if (!isHost) return;
-      const roomRef = ref(database(), `rooms/${roomId}/moderators`);
+      const roomRef = ref(database, `rooms/${roomId}/moderators`);
       const newModerators = [...moderators, userName];
       set(roomRef, newModerators);
       toast({ title: "تمت الترقية", description: `أصبح ${userName} مشرفًا.` });
@@ -495,7 +495,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
   const handleDemote = (userName: string) => {
       if (!isHost) return;
-      const roomRef = ref(database(), `rooms/${roomId}/moderators`);
+      const roomRef = ref(database, `rooms/${roomId}/moderators`);
       const newModerators = moderators.filter(mod => mod !== userName);
       set(roomRef, newModerators);
       toast({ title: "تم تخفيض الرتبة", description: `لم يعد ${userName} مشرفًا.` });
@@ -503,7 +503,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
   const handleTransferHost = (userName: string) => {
       if (!isHost) return;
-      const roomRef = ref(database(), `rooms/${roomId}/host`);
+      const roomRef = ref(database, `rooms/${roomId}/host`);
       set(roomRef, userName);
       handleDemote(userName); // Demote from moderator if they were one
       toast({ title: "تم نقل الملكية", description: `أصبحت الغرفة الآن ملك ${userName}.` });

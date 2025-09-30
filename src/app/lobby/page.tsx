@@ -32,12 +32,12 @@ export default function LobbyPage() {
     }
     if (isLoaded && user) {
       // Connect to Firebase presence system when user is loaded
-      goOnline(database());
+      goOnline(database);
     }
   }, [isLoaded, user, router]);
 
   useEffect(() => {
-    const roomsRef = ref(database(), 'rooms');
+    const roomsRef = ref(database, 'rooms');
     const listener = onValue(roomsRef, (snapshot) => {
       const roomsData = snapshot.val();
       if (roomsData) {
