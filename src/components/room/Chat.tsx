@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { database } from '@/lib/firebase';
-import { ref, onValue, push, set } from 'firebase/database';
+import { ref, onValue, push, set, off } from 'firebase/database';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -51,7 +51,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
       const loadedMessages: Message[] = data ? Object.values(data) : [];
       setMessages(loadedMessages.sort((a, b) => a.timestamp - b.timestamp));
     });
-    return () => onValue(chatRef, listener);
+    return () => off(chatRef, 'value', listener);
   }, [roomId]);
 
   useEffect(() => {
