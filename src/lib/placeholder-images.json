@@ -65,6 +65,66 @@
       "description": "A placeholder for a movie poster",
       "imageUrl": "https://images.unsplash.com/photo-1511875762315-c773eb98eec0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxtb3ZpZSUyMHBvc3RlcnxlbnwwfHx8fDE3NTg4ODkwNzB8MA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "movie poster"
+    },
+    {
+      "id": "bg6",
+      "description": "Couple silhouette at sunset",
+      "imageUrl": "https://images.unsplash.com/photo-1473496169904-658ba7c44d8a?w=1920&h=1080&fit=crop",
+      "imageHint": "couple sunset"
+    },
+    {
+      "id": "bg7",
+      "description": "Fairy lights in a jar",
+      "imageUrl": "https://images.unsplash.com/photo-1483366774565-c783b9f70e2c?w=1920&h=1080&fit=crop",
+      "imageHint": "fairy lights"
+    },
+    {
+      "id": "bg8",
+      "description": "Path with lanterns at night",
+      "imageUrl": "https://images.unsplash.com/photo-1531318432145-6c5b8a53add3?w=1920&h=1080&fit=crop",
+      "imageHint": "night lanterns"
+    },
+    {
+      "id": "bg9",
+      "description": "Two cups of coffee with a heart shape",
+      "imageUrl": "https://images.unsplash.com/photo-1541167760496-1628856ab772?w=1920&h=1080&fit=crop",
+      "imageHint": "love coffee"
+    },
+    {
+      "id": "bg10",
+      "description": "A book with heart-shaped pages",
+      "imageUrl": "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=1920&h=1080&fit=crop",
+      "imageHint": "love book"
+    },
+    {
+      "id": "bg11",
+      "description": "A calm lake at sunrise",
+      "imageUrl": "https://images.unsplash.com/photo-1502957298391-f2245b5107e0?w=1920&h=1080&fit=crop",
+      "imageHint": "calm lake"
+    },
+    {
+      "id": "bg12",
+      "description": "Candles and flowers on a table",
+      "imageUrl": "https://images.unsplash.com/photo-1561501900-3701fa6a0864?w=1920&h=1080&fit=crop",
+      "imageHint": "romantic dinner"
+    },
+    {
+      "id": "bg13",
+      "description": "Starry night sky over a forest",
+      "imageUrl": "https://images.unsplash.com/photo-1483728642387-6c351b4d1cb1?w=1920&h=1080&fit=crop",
+      "imageHint": "starry night"
+    },
+    {
+      "id": "bg14",
+      "description": "A cozy fireplace",
+      "imageUrl": "https://images.unsplash.com/photo-1549499839-8784b817b35f?w=1920&h=1080&fit=crop",
+      "imageHint": "cozy fireplace"
+    },
+    {
+      "id": "bg15",
+      "description": "Red rose petals",
+      "imageUrl": "https://images.unsplash.com/photo-1559563459-7a7157b1b659?w=1920&h=1080&fit=crop",
+      "imageHint": "rose petals"
     }
   ]
 }
