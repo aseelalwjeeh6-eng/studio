@@ -199,7 +199,7 @@ export const getFriendRequests = async (username: string): Promise<AppUser[]> =>
 // Get a user's friends
 export const getFriends = async (username: string): Promise<AppUser[]> => {
     const { data } = await getUserDoc(username);
-    if (!data || !data.friends || data.friends.length === 0) {
+    if (!data || !data.friends || !data.friends.length) {
         return [];
     }
 
