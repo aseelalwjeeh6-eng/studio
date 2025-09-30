@@ -79,7 +79,7 @@ export const upsertUser = async (user: { name: string, avatarId?: string, newAva
         });
     } else {
         const updates: any = {};
-        if (user.avatarId && snap.data()?.avatarId !== user.avatarId) {
+        if (user.avatarId) {
             updates.avatarId = user.avatarId;
         }
         if (user.newAvatar) {
