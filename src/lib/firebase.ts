@@ -1,5 +1,4 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
@@ -16,8 +15,6 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const database = getDatabase(app);
-// Firestore is not used, but we keep the export to avoid breaking other files if they import it.
-const firestore = getFirestore(app);
 
 
 const getAnalyticsInstance = async () => {
@@ -31,4 +28,4 @@ const getAnalyticsInstance = async () => {
 }
 
 
-export { app, firestore, database, getAnalyticsInstance };
+export { app, database, getAnalyticsInstance };
