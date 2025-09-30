@@ -11,7 +11,7 @@ import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
 import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, ListPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { AudioConference, useLiveKitRoom, useLocalParticipant } from '@livekit/components-react';
+import { AudioConference, useLiveKitRoom, useLocalParticipant, useParticipants } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
 import Seats from './Seats';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
@@ -110,7 +110,7 @@ const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwi
     )
 }
 
-const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?: boolean }) => {
+const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?: boolean }) => {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUserSession();
   const [allMembers, setAllMembers] = useState<Member[]>([]);
@@ -119,8 +119,6 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const [hostName, setHostName] = useState('');
   const [moderators, setModerators] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [token, setToken] = useState('');
   const [playlist, setPlaylist] = useState<PlaylistItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -168,94 +166,54 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       router.push(`/rooms/${roomId}`);
   }
   
-useEffect(() => {
-    if (!isUserLoaded) return;
-    if (!user) {
-        router.push('/');
-        return;
-    }
+  useEffect(() => {
+    if (!isUserLoaded || !user) return;
 
-    const listeners: Unsubscribe[] = [];
     let isMounted = true;
+    const listeners: Unsubscribe[] = [];
 
-    const setupRoom = async () => {
-        try {
-            const roomRef = ref(database, `rooms/${roomId}`);
-            const snapshot = await get(roomRef);
+    const setupListeners = async () => {
+        const roomRef = ref(database, `rooms/${roomId}`);
+        const roomSnapshot = await get(roomRef);
+        if (!isMounted) return;
 
-            if (!isMounted) return;
-
-            if (!snapshot.exists()) {
-                toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
-                router.push('/lobby');
-                return;
-            }
-            
-            const roomData = snapshot.val();
-            setHostName(roomData.host);
-            setModerators(roomData.moderators || []);
-            setIsLoading(false);
-
-            await goOnline(database);
-            const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
-            const memberData = { name: user.name, avatarId: user.avatarId, joinedAt: serverTimestamp() };
-            await set(userRef, memberData);
-            onDisconnect(userRef).remove();
-
-            const tokenResp = await fetch(`/api/livekit?room=${roomId}&username=${user.name}`);
-            const tokenData = await tokenResp.json();
-            if (isMounted) {
-                setToken(tokenData.token);
-            }
-
-            const membersRef = ref(database, `rooms/${roomId}/members`);
-            listeners.push(onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : [])));
-            
-            const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
-            listeners.push(onValue(seatedMembersRef, (snapshot) => {
-                const seatedData = snapshot.val();
-                const seatedArray = seatedData ? Object.values(seatedData) : [];
-                setSeatedMembers(seatedArray as SeatedMember[]);
-            }));
-            
-            const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
-            listeners.push(onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || '')));
-
-            const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
-            listeners.push(onValue(playerStateRef, (snapshot) => setPlayerState(snapshot.val())));
-
-            const hostRef = ref(database, `rooms/${roomId}/host`);
-            listeners.push(onValue(hostRef, (snapshot) => setHostName(snapshot.val() || '')));
-
-            const moderatorsRef = ref(database, `rooms/${roomId}/moderators`);
-            listeners.push(onValue(moderatorsRef, (snapshot) => setModerators(snapshot.val() || [])));
-
-            const playlistRef = ref(database, `rooms/${roomId}/playlist`);
-            listeners.push(onValue(playlistRef, (snapshot) => setPlaylist(snapshot.val() ? Object.values(snapshot.val()) : [])));
-
-        } catch (error) {
-            console.error("Error setting up room:", error);
-            if (isMounted) {
-                toast({ title: 'خطأ في الغرفة', description: 'فشل الاتصال بالغرفة. يرجى المحاولة مرة أخرى.', variant: 'destructive' });
-                router.push('/lobby');
-            }
+        if (!roomSnapshot.exists()) {
+          toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
+          router.push('/lobby');
+          return;
         }
+
+        const membersRef = ref(database, `rooms/${roomId}/members`);
+        listeners.push(onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : [])));
+        
+        const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
+        listeners.push(onValue(seatedMembersRef, (snapshot) => {
+            const seatedData = snapshot.val();
+            const seatedArray = seatedData ? Object.values(seatedData) : [];
+            setSeatedMembers(seatedArray as SeatedMember[]);
+        }));
+        
+        const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
+        listeners.push(onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || '')));
+
+        const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
+        listeners.push(onValue(playerStateRef, (snapshot) => setPlayerState(snapshot.val())));
+
+        const hostRef = ref(database, `rooms/${roomId}/host`);
+        listeners.push(onValue(hostRef, (snapshot) => setHostName(snapshot.val() || '')));
+
+        const moderatorsRef = ref(database, `rooms/${roomId}/moderators`);
+        listeners.push(onValue(moderatorsRef, (snapshot) => setModerators(snapshot.val() || [])));
+
+        const playlistRef = ref(database, `rooms/${roomId}/playlist`);
+        listeners.push(onValue(playlistRef, (snapshot) => setPlaylist(snapshot.val() ? Object.values(snapshot.val()) : [])));
     };
 
-    setupRoom();
+    setupListeners();
 
     return () => {
         isMounted = false;
         listeners.forEach(unsubscribe => unsubscribe());
-      
-        if (user) {
-            const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
-            get(memberRef).then(snapshot => {
-                if (snapshot.exists()) {
-                    set(memberRef, null);
-                }
-            });
-        }
     };
 }, [isUserLoaded, user, roomId, router, toast]);
 
@@ -490,7 +448,7 @@ useEffect(() => {
   }
 
 
-  if (isLoading || !isUserLoaded || !user) {
+  if (!isUserLoaded || !user) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-accent" />
@@ -499,13 +457,6 @@ useEffect(() => {
   }
 
   return (
-    <LiveKitRoom
-      token={token}
-      serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL!}
-      user={user}
-      isSeated={isSeated}
-      videoMode={videoMode}
-    >
         <div className="flex flex-col h-screen w-full bg-background items-center">
             <RoomHeader 
                 onSearchClick={() => setIsSearchOpen(true)} 
@@ -575,7 +526,6 @@ useEffect(() => {
              <div className="hidden">
                 <AudioConference />
             </div>
-        </div>
 
         <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
             <DialogContent className="max-w-md">
@@ -702,10 +652,93 @@ useEffect(() => {
                 </div>
             </DialogContent>
         </Dialog>
+    </div>
+  )
+}
+
+
+const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?: boolean }) => {
+  const router = useRouter();
+  const { user, isLoaded: isUserLoaded } = useUserSession();
+  const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState('');
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    if (!isUserLoaded) return;
+    if (!user) {
+        router.push('/');
+        return;
+    }
+
+    let isMounted = true;
+
+    const setupRoom = async () => {
+        try {
+            // First, ensure user is in the database for presence
+            await goOnline(database);
+            const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+            const memberData = { name: user.name, avatarId: user.avatarId, joinedAt: serverTimestamp() };
+            await set(userRef, memberData);
+            onDisconnect(userRef).remove();
+
+            // Then, fetch the LiveKit token
+            const tokenResp = await fetch(`/api/livekit?room=${roomId}&username=${user.name}`);
+            if (!tokenResp.ok) {
+              throw new Error(`Failed to fetch token: ${tokenResp.statusText}`);
+            }
+            const tokenData = await tokenResp.json();
+            if (isMounted) {
+                setToken(tokenData.token);
+            }
+        } catch (error) {
+            console.error("Error setting up room:", error);
+            if (isMounted) {
+                toast({ title: 'خطأ في الغرفة', description: 'فشل الاتصال بالغرفة. يرجى المحاولة مرة أخرى.', variant: 'destructive' });
+                router.push('/lobby');
+            }
+        } finally {
+            if (isMounted) {
+              setIsLoading(false);
+            }
+        }
+    };
+
+    setupRoom();
+
+    return () => {
+        isMounted = false;
+        // The onDisconnect handles removal, but we can try to remove manually if the user navigates away
+        if (user) {
+            const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+            get(memberRef).then(snapshot => {
+                if (snapshot.exists()) {
+                    set(memberRef, null);
+                }
+            });
+        }
+    };
+}, [isUserLoaded, user, roomId, router, toast]);
+
+  if (isLoading || !isUserLoaded || !user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-16 w-16 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  return (
+    <LiveKitRoom
+      token={token}
+      serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL!}
+      user={user}
+      isSeated={true} // Dummy value, real value is managed inside RoomLayout
+      videoMode={videoMode}
+    >
+      <RoomLayout roomId={roomId} videoMode={videoMode} />
     </LiveKitRoom>
   );
 };
 
 export default RoomClient;
-
-    
