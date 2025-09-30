@@ -125,6 +125,66 @@
       "description": "Red rose petals",
       "imageUrl": "https://images.unsplash.com/photo-1559563459-7a7157b1b659?w=1920&h=1080&fit=crop",
       "imageHint": "rose petals"
+    },
+    {
+      "id": "bg16",
+      "description": "Red light room",
+      "imageUrl": "https://images.unsplash.com/photo-1620394028399-5910a51403ae?w=1920&h=1080&fit=crop",
+      "imageHint": "red light"
+    },
+    {
+      "id": "bg17",
+      "description": "Romantic birthday cake with candles",
+      "imageUrl": "https://images.unsplash.com/photo-1586985289993-e5b3b1364547?w=1920&h=1080&fit=crop",
+      "imageHint": "birthday cake"
+    },
+    {
+      "id": "bg18",
+      "description": "Dinner table with candles",
+      "imageUrl": "https://images.unsplash.com/photo-1580662688482-40f428c03741?w=1920&h=1080&fit=crop",
+      "imageHint": "candlelight dinner"
+    },
+    {
+      "id": "bg19",
+      "description": "Bouquet of red roses",
+      "imageUrl": "https://images.unsplash.com/photo-1568557434978-57102b54c87c?w=1920&h=1080&fit=crop",
+      "imageHint": "red roses"
+    },
+    {
+      "id": "bg20",
+      "description": "Romantic party with balloons",
+      "imageUrl": "https://images.unsplash.com/photo-1562441999-0140f7d5d713?w=1920&h=1080&fit=crop",
+      "imageHint": "romantic party"
+    },
+    {
+      "id": "bg21",
+      "description": "Cozy room with red and blue lights",
+      "imageUrl": "https://images.unsplash.com/photo-1598289431512-b970d496d5b7?w=1920&h=1080&fit=crop",
+      "imageHint": "neon lights"
+    },
+    {
+      "id": "bg22",
+      "description": "Heart shaped sparklers",
+      "imageUrl": "https://images.unsplash.com/photo-1513299719323-87a4005e838f?w=1920&h=1080&fit=crop",
+      "imageHint": "heart sparklers"
+    },
+    {
+      "id": "bg23",
+      "description": "A single red rose",
+      "imageUrl": "https://images.unsplash.com/photo-1534966249583-c24c73b062b9?w=1920&h=1080&fit=crop",
+      "imageHint": "red rose"
+    },
+    {
+      "id": "bg24",
+      "description": "Romantic table setup outdoors",
+      "imageUrl": "https://images.unsplash.com/photo-1594488544497-a1a74d28c240?w=1920&h=1080&fit=crop",
+      "imageHint": "outdoor dinner"
+    },
+    {
+      "id": "bg25",
+      "description": "Many candles in a dark room",
+      "imageUrl": "https://images.unsplash.com/photo-1582772036928-c11a0c0050c7?w=1920&h=1080&fit=crop",
+      "imageHint": "many candles"
     }
   ]
 }
