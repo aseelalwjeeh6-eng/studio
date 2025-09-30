@@ -44,6 +44,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 export type User = {
   name: string;
   avatarId?: string;
+  generatedAvatars?: any[];
 };
 type UserContextType = {
   user: User | null;

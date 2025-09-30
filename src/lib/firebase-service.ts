@@ -41,6 +41,7 @@ export interface AppUser {
     friends?: string[];
     friendRequests?: FriendRequest[];
     invitations?: RoomInvitation[];
+    generatedAvatars?: { id: string; imageUrl: string; description: string; imageHint: string; }[];
 }
 
 export type AppNotification = {
@@ -64,19 +65,29 @@ const getUserDoc = async (username: string) => {
 };
 
 // Create or update a user in the 'users' collection
-export const upsertUser = async (user: { name: string, avatarId?: string }) => {
+export const upsertUser = async (user: { name: string, avatarId?: string, newAvatar?: any }) => {
     const { ref, snap } = await getUserDoc(user.name);
+    
     if (!snap.exists()) {
         await setDoc(ref, { 
             name: user.name, 
             avatarId: user.avatarId || 'avatar1',
             friends: [],
             friendRequests: [],
-            invitations: []
+            invitations: [],
+            generatedAvatars: user.newAvatar ? [user.newAvatar] : []
         });
     } else {
+        const updates: any = {};
         if (user.avatarId && snap.data()?.avatarId !== user.avatarId) {
-            await updateDoc(ref, { avatarId: user.avatarId });
+            updates.avatarId = user.avatarId;
+        }
+        if (user.newAvatar) {
+            updates.generatedAvatars = arrayUnion(user.newAvatar);
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await updateDoc(ref, updates);
         }
     }
 };
@@ -336,3 +347,8 @@ export const createRoom = async ({ hostName, avatarId, isPrivate }: CreateRoomIn
 
     return newRoomId;
 };
+
+export const getUserData = async (username: string): Promise<AppUser | null> => {
+    const { data } = await getUserDoc(username);
+    return data || null;
+}

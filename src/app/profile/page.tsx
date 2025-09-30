@@ -9,11 +9,12 @@ import { PlaceHolderImages, ImagePlaceholder } from '@/lib/placeholder-images';
 import { User as UserIcon, Loader2, CheckCircle, Image as ImageIcon, Sparkles, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { upsertUser } from '@/lib/firebase-service';
+import { upsertUser, getUserData } from '@/lib/firebase-service';
 import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { AppUser } from '@/lib/firebase-service';
 
 export default function ProfilePage() {
   const { user, setUser, isLoaded } = useUserSession();
@@ -31,9 +32,16 @@ export default function ProfilePage() {
   useEffect(() => {
     if (isLoaded && !user) {
       router.push('/');
+      return;
     }
-    if (user?.avatarId) {
+    if (user) {
       setSelectedAvatarId(user.avatarId);
+      // Fetch full user data to get generated avatars
+      getUserData(user.name).then(fullUser => {
+        if (fullUser?.generatedAvatars) {
+          setGeneratedAvatars(fullUser.generatedAvatars);
+        }
+      });
     }
   }, [isLoaded, user, router]);
 
@@ -48,7 +56,7 @@ export default function ProfilePage() {
   };
 
   const handleGenerateAvatar = async () => {
-    if (!avatarPrompt.trim()) return;
+    if (!avatarPrompt.trim() || !user) return;
     setIsGenerating(true);
     try {
         const { imageUrl } = await generateAvatar({ prompt: avatarPrompt });
@@ -58,10 +66,21 @@ export default function ProfilePage() {
             imageUrl: imageUrl,
             imageHint: 'generated avatar'
         };
+
+        // Update local state immediately for responsiveness
         setGeneratedAvatars(prev => [newAvatar, ...prev]);
+        setSelectedAvatarId(newAvatar.id);
+        
+        // Update user session context
+        const updatedUser = { ...user, avatarId: newAvatar.id };
+        setUser(updatedUser);
+        
+        // Persist changes to Firebase
+        await upsertUser({ name: user.name, avatarId: newAvatar.id, newAvatar: newAvatar });
+        
         setAvatarPrompt('');
-        handleAvatarSelect(newAvatar.id); // Auto-select the new avatar
         toast({ title: "تم إنشاء الصورة الرمزية!", description: "تم تحديد صورتك الرمزية الجديدة." });
+
     } catch (error) {
         console.error("Avatar generation failed:", error);
         toast({ title: "فشل إنشاء الصورة", description: "حدث خطأ أثناء محاولة إنشاء صورتك الرمزية. يرجى المحاولة مرة أخرى.", variant: "destructive" });
@@ -71,7 +90,7 @@ export default function ProfilePage() {
   };
 
 
-  const currentAvatar = [...PlaceHolderImages, ...generatedAvatars].find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id === 'avatar1');
+  const currentAvatar = [...generatedAvatars, ...PlaceHolderImages].find(p => p.id === user?.avatarId) ?? PlaceHolderImages.find(p => p.id === 'avatar1');
   const avatarPlaceholders = PlaceHolderImages.filter(p => p.id.startsWith('avatar'));
 
   if (!isLoaded || !user) {
