@@ -81,7 +81,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   const handleSliderChange = (value: number[]) => {
     if (!playerRef.current || !canControl) return;
     const newTime = value[0];
-    setProgress(newTime);
+    setProgress(newTime); // Optimistically update slider
     playerRef.current.seekTo(newTime, true);
     handleStateChange(playerRef.current.getPlayerState() === 1, newTime);
   };
@@ -97,10 +97,8 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
 
   const toggleControls = () => {
       if (!canControl || !videoId) return;
-      setShowControls(prev => !prev);
-      if (!showControls) {
-          hideControlsAfterDelay();
-      }
+      setShowControls(true);
+      hideControlsAfterDelay();
   };
 
   // Effect for syncing remote state to local player (for viewers)
@@ -109,28 +107,36 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     if (!player || !playerState || !isPlayerReady.current || canControl) return;
 
     const playerStatus = player.getPlayerState();
-    if (playerState.isPlaying && playerStatus !== 1) {
+    
+    // Sync play/pause state
+    if (playerState.isPlaying && playerStatus !== 1 && playerStatus !== 3) {
       player.playVideo();
     } else if (!playerState.isPlaying && playerStatus === 1) {
       player.pauseVideo();
     }
 
-    const currentTime = player.getCurrentTime();
+    // Sync seek time, accounting for latency
     const hostTime = playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
-    if (Math.abs(currentTime - hostTime) > 3) {
+    const currentTime = player.getCurrentTime();
+
+    if (Math.abs(currentTime - hostTime) > 2) {
       isSeekingRef.current = true;
       player.seekTo(hostTime, true);
       setTimeout(() => { isSeekingRef.current = false; }, 1000);
     }
   }, [playerState, canControl]);
 
-  // Effect for host to update progress bar
+  // Effect for host to update progress bar and sync state periodically
   useEffect(() => {
     if (canControl && playerRef.current && playerState?.isPlaying) {
       intervalRef.current = setInterval(() => {
-        const currentTime = playerRef.current?.getCurrentTime() || 0;
-        setProgress(currentTime);
-        hideControlsAfterDelay(); // Reset timeout on activity
+        const player = playerRef.current;
+        if (player) {
+          const currentTime = player.getCurrentTime() || 0;
+          setProgress(currentTime);
+          // Periodically sync host time to prevent drift
+          onPlayerStateChange({ seekTime: currentTime });
+        }
       }, 1000);
     } else {
       if (intervalRef.current) {
@@ -141,28 +147,46 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [canControl, playerState?.isPlaying]);
+  }, [canControl, playerState?.isPlaying, onPlayerStateChange]);
+  
+  // Update local progress for viewers
+  useEffect(() => {
+    if (!canControl && playerState) {
+        setProgress(playerState.seekTime + (Date.now() - playerState.timestamp) / 1000);
+    }
+  }, [playerState, canControl]);
+
 
   const onReady = (event: { target: YouTubePlayer }) => {
     playerRef.current = event.target;
     isPlayerReady.current = true;
-    setDuration(event.target.getDuration());
+    const videoDuration = event.target.getDuration();
+    setDuration(videoDuration);
 
     if (playerState) {
-      const initialSeekTime = canControl ? playerState.seekTime : playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
-      event.target.seekTo(initialSeekTime, true);
-      if (playerState.isPlaying) {
-        event.target.playVideo();
-      }
+        // Calculate initial seek time considering time passed since last update
+        const initialSeekTime = playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
+        const validSeekTime = Math.min(initialSeekTime, videoDuration);
+
+        event.target.seekTo(validSeekTime, true);
+        
+        if (playerState.isPlaying) {
+            event.target.playVideo();
+        } else {
+            event.target.pauseVideo();
+        }
     }
   };
 
   const onStateChange = (event: { data: number }) => {
-    if (!canControl || !playerRef.current || isSeekingRef.current) return;
-    const currentTime = playerRef.current.getCurrentTime();
+    const player = playerRef.current;
+    if (!canControl || !player || isSeekingRef.current) return;
+    
+    const currentTime = player.getCurrentTime();
 
     if (event.data === 0) { // Ended
       onVideoEnded();
+      handleStateChange(false, 0);
     } else if (event.data === 1) { // Playing
       handleStateChange(true, currentTime);
     } else if (event.data === 2) { // Paused
@@ -179,8 +203,9 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   };
   
   const formatTime = (seconds: number) => {
+    if (isNaN(seconds) || seconds < 0) return '00:00:00';
     const date = new Date(0);
-    date.setSeconds(seconds || 0);
+    date.setSeconds(seconds);
     return date.toISOString().substr(11, 8);
   };
 
@@ -217,7 +242,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
           <iframe
             src={videoUrl}
             title="Shared Content"
-            className="w-full h-full border-0"
+            className="w-full h-full border-0 pointer-events-none"
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowFullScreen
           ></iframe>
@@ -273,7 +298,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
             "absolute inset-0 z-20 flex flex-col justify-between p-4 bg-black/30 transition-opacity duration-300",
             showControls ? "opacity-100" : "opacity-0"
         )}
-        onMouseMove={hideControlsAfterDelay} // Keep controls visible while mouse is moving
+        onMouseMove={hideControlsAfterDelay}
       >
         {/* Top Spacer */}
         <div></div>
@@ -308,7 +333,9 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
 
   return (
     <div className="aspect-video w-full rounded-lg overflow-hidden shadow-md bg-black relative">
-      {renderContent()}
+      <div className="absolute inset-0 w-full h-full">
+         {renderContent()}
+      </div>
       <div 
         className="absolute inset-0 w-full h-full bg-transparent z-10"
         onClick={toggleControls}

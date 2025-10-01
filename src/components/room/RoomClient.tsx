@@ -320,20 +320,21 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       set(ref(database, `rooms/${roomId}/playerState`), { 
         isPlaying: true, 
         seekTime: startTime, 
-        timestamp: serverTimestamp() 
+        timestamp: Date.now()
       });
     }
   }, [canControl, roomId]);
   
-  const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
+  const handlePlayerStateChange = useCallback((newState: Partial<PlayerState>) => {
     if (canControl) {
         const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
-        // We use update here to avoid overwriting the whole object if other fields exist
         runTransaction(playerStateRef, (currentState) => {
-            return { ...(currentState || {}), ...newState, timestamp: Date.now() };
+            const current = currentState || { isPlaying: false, seekTime: 0 };
+            return { ...current, ...newState, timestamp: Date.now() };
         });
     }
-  };
+  }, [canControl, roomId]);
+
 
   const handleSetVideoFromPreview = () => {
     if (previewPlayerRef.current && previewVideo) {
@@ -655,15 +656,24 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     }
 
     let isMounted = true;
+    let memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
 
     const setupRoom = async () => {
-        // Run database setup and token fetching in parallel
-        const dbSetupPromise = (async () => {
+        const roomRef = ref(database, `rooms/${roomId}`);
+        const roomSnapshot = await get(roomRef);
+
+        if (!roomSnapshot.exists()) {
+            toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
+            router.push('/lobby');
+            return;
+        }
+
+        // Setup presence and fetch LiveKit token in parallel
+        const presencePromise = (async () => {
             await goOnline(database);
-            const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
             const memberData = { name: user.name, avatarId: user.avatarId || 'avatar1', joinedAt: serverTimestamp() };
-            await set(userRef, memberData);
-            onDisconnect(userRef).remove();
+            await set(memberRef, memberData);
+            onDisconnect(memberRef).remove();
         })();
 
         const tokenFetchPromise = (async () => {
@@ -686,12 +696,10 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         })();
 
         try {
-            await dbSetupPromise;
-            // Token fetch is not awaited here to allow UI to render faster.
-            // The LiveKitRoom component handles the loading state.
+            await Promise.all([presencePromise, tokenFetchPromise]);
         } catch (error) {
-            console.error("Error setting up room database part:", error);
             if (isMounted) {
+                console.error("Error setting up room:", error);
                 toast({ title: 'خطأ في الاتصال', description: 'فشل في تهيئة الغرفة.', variant: 'destructive' });
                 router.push('/lobby');
             }
@@ -702,15 +710,15 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
     return () => {
         isMounted = false;
-        goOffline(database);
-        if (user) {
-            const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
-            get(memberRef).then(snapshot => {
-                if (snapshot.exists()) {
-                    set(memberRef, null);
-                }
-            });
-        }
+        // The onDisconnect handles removal, but we can also do it client-side for faster cleanup.
+        // The check for snapshot existence is to prevent errors if the component unmounts quickly.
+        get(memberRef).then(snapshot => {
+            if (snapshot.exists()) {
+                remove(memberRef);
+            }
+        }).finally(() => {
+            goOffline(database);
+        });
     };
 }, [isUserLoaded, user, roomId, router, toast]);
 
