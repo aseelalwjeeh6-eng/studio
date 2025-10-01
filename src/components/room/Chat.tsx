@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { cn } from '@/lib/utils';
 
 
 interface ChatProps {
@@ -32,10 +33,11 @@ interface ChatProps {
   onToggleMute: () => void;
 }
 
-interface Message {
+export interface Message {
   sender: string;
   text: string;
   timestamp: number;
+  isSystemMessage?: boolean;
 }
 
 const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatProps) => {
@@ -78,7 +80,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
         const { filteredText } = await filterProfanity({ text: newMessage });
 
         const chatRef = ref(database, `rooms/${roomId}/chat`);
-        const messageData = {
+        const messageData: Message = {
             sender: user.name,
             text: filteredText,
             timestamp: Date.now(),
@@ -130,9 +132,17 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
         <ScrollArea className="h-full" viewportRef={viewportRef}>
            <div className="p-4 space-y-4">
             {messages.length > 0 ? messages.map((msg, index) => (
-              <div key={index} className="flex flex-col">
-                <span className="font-bold text-sm text-accent">{msg.sender}</span>
-                <p className="text-md text-foreground break-words">{msg.text}</p>
+               <div key={index}>
+                {msg.isSystemMessage ? (
+                    <p className="text-sm text-muted-foreground italic text-center py-1">
+                        {msg.text}
+                    </p>
+                ) : (
+                    <div className="flex flex-col">
+                        <span className="font-bold text-sm text-accent">{msg.sender}</span>
+                        <p className="text-md text-foreground break-words">{msg.text}</p>
+                    </div>
+                )}
               </div>
             )) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -167,5 +177,3 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
 };
 
 export default Chat;
-
-    
