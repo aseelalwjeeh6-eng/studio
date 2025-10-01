@@ -318,9 +318,17 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       performSearch(query);
   };
   
-  const onSetVideo = useCallback((url: string, startTime = 0) => {
+  const onSetVideo = useCallback((videoIdentifier: string, startTime = 0) => {
     if (canControl) {
-      set(ref(database, `rooms/${roomId}/videoUrl`), url);
+      let finalUrl = videoIdentifier;
+      // Check if it's a valid URL, otherwise treat it as a video ID
+      try {
+        new URL(videoIdentifier);
+      } catch (_) {
+        finalUrl = `https://www.youtube.com/watch?v=${videoIdentifier}`;
+      }
+
+      set(ref(database, `rooms/${roomId}/videoUrl`), finalUrl);
       set(ref(database, `rooms/${roomId}/playerState`), { 
         isPlaying: true, 
         seekTime: startTime, 
@@ -343,7 +351,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const handleSetVideoFromPreview = () => {
     if (previewPlayerRef.current && previewVideo) {
       const currentTime = previewPlayerRef.current.getCurrentTime();
-      onSetVideo(`https://www.youtube.com/watch?v=${previewVideo.id.videoId}`, currentTime);
+      onSetVideo(previewVideo.id.videoId, currentTime);
       setPreviewVideo(null); // Close preview dialog
       setIsSearchOpen(false); // Close search dialog
     }
