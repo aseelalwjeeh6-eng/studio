@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import YouTube, { YouTubePlayer } from 'react-youtube';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Play, Search, Film } from 'lucide-react';
+import { Play, Search, Film, Pause } from 'lucide-react';
 import { PlayerState } from './RoomClient';
 
 interface PlayerProps {
@@ -55,7 +55,9 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     if (!isYoutubeLink) return; // Only sync for YouTube videos
 
     const player = playerRef.current;
-    if (!player || !playerState || canControl || !isPlayerReady.current) return;
+    if (!player || !playerState || !isPlayerReady.current) return;
+
+    if (canControl) return; // Host controls their own player
 
     // Sync play/pause state
     const playerStatus = player.getPlayerState();
@@ -118,6 +120,16 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     }
   };
 
+  const togglePlay = () => {
+    if (!canControl || !playerRef.current) return;
+    const playerStatus = playerRef.current.getPlayerState();
+    if (playerStatus === 1) {
+      playerRef.current.pauseVideo();
+    } else {
+      playerRef.current.playVideo();
+    }
+  };
+
   const renderContent = () => {
     if (isYoutubeLink && videoId) {
       return (
@@ -129,12 +141,12 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
                 width: '100%',
                 playerVars: {
                   autoplay: 1,
-                  controls: canControl ? 1 : 0,
+                  controls: 0, // Disable all YouTube controls
                   rel: 0,
                   showinfo: 0,
                   modestbranding: 1,
                   iv_load_policy: 3,
-                  disablekb: canControl ? 0 : 1,
+                  disablekb: 1, // Disable keyboard controls
                 },
             }}
             onReady={onReady}
@@ -149,7 +161,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
         <iframe
           src={videoUrl}
           title="Shared Content"
-          className="w-full h-full border-0"
+          className="w-full h-full border-0 pointer-events-none" // pointer-events-none for non-youtube
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
           allowFullScreen
         ></iframe>
@@ -197,12 +209,29 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     );
   }
 
+  const renderCustomControls = () => {
+    if (!canControl || !videoUrl || !isYoutubeLink) return null;
+
+    return (
+      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
+        <Button onClick={togglePlay} size="icon" className="rounded-full">
+          {playerState?.isPlaying ? <Pause /> : <Play />}
+        </Button>
+        <div className="bg-black/50 text-white px-2 py-1 rounded-md text-xs">
+          {playerState?.isPlaying ? "تشغيل" : "متوقف"}
+        </div>
+      </div>
+    );
+  };
+
+
   return (
     <div className="aspect-video w-full rounded-lg overflow-hidden shadow-md bg-black relative">
       {renderContent()}
-      {!canControl && videoUrl && (
+      {videoUrl && (
         <div className="absolute inset-0 w-full h-full bg-transparent z-10" />
       )}
+      {renderCustomControls()}
     </div>
   );
 };

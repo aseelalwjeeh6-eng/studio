@@ -9,7 +9,7 @@ import Player from './Player';
 import Chat from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
-import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard } from 'lucide-react';
+import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AudioConference, useLiveKitRoom, useLocalParticipant, useParticipants } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
@@ -511,29 +511,31 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
     <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
         <DialogContent className="max-w-none w-screen h-screen m-0 p-0 !rounded-none flex flex-col bg-background">
-            <DialogHeader className="p-4 border-b border-border sticky top-0 bg-background z-10 flex flex-row items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <DialogTitle className="sr-only">بحث يوتيوب</DialogTitle>
-                    <DialogDescription className="sr-only">
-                    ابحث عن مقاطع فيديو من يوتيوب لتشغيلها في الغرفة.
-                    </DialogDescription>
-                    <form onSubmit={handleSearchSubmit} className="flex-grow flex items-center gap-2">
-                        <Input
-                            type="text"
-                            placeholder="ابحث في يوتيوب..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="h-12 text-lg bg-input border-border focus:ring-accent flex-grow"
-                            disabled={isSearching}
-                        />
-                        <Button type="submit" size="icon" className="h-12 w-12" disabled={isSearching}>
-                            {isSearching ? <Loader2 className="h-6 w-6 animate-spin" /> : <Search className="h-6 w-6" />}
-                        </Button>
-                    </form>
+            <DialogHeader className="p-4 border-b border-border sticky top-0 bg-background z-10">
+                <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-4 flex-grow">
+                        <DialogTitle className="sr-only">بحث يوتيوب</DialogTitle>
+                        <DialogDescription className="sr-only">
+                        ابحث عن مقاطع فيديو من يوتيوب لتشغيلها في الغرفة.
+                        </DialogDescription>
+                        <form onSubmit={handleSearchSubmit} className="flex-grow flex items-center gap-2">
+                            <Input
+                                type="text"
+                                placeholder="ابحث في يوتيوب..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="h-12 text-lg bg-input border-border focus:ring-accent flex-grow"
+                                disabled={isSearching}
+                            />
+                            <Button type="submit" size="icon" className="h-12 w-12" disabled={isSearching}>
+                                {isSearching ? <Loader2 className="h-6 w-6 animate-spin" /> : <Search className="h-6 w-6" />}
+                            </Button>
+                        </form>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-12 w-12 ms-4" onClick={() => setIsSearchOpen(false)}>
+                        <X className="h-6 w-6" />
+                    </Button>
                 </div>
-                <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => setIsSearchOpen(false)}>
-                    <X className="h-6 w-6" />
-                </Button>
             </DialogHeader>
             <div className="flex-grow overflow-y-auto">
                 {isSearching && (
