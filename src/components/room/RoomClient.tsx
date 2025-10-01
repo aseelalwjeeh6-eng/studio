@@ -566,24 +566,26 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                             onTransferHost={handleTransferHost}
                             room={room}
                         />
-                        <ViewerInfo members={viewers} />
                     </div>
-                    <div className="min-h-0 lg:grid lg:grid-rows-2 gap-4">
-                       <Chat 
-                            roomId={roomId} 
-                            user={user} 
-                            isHost={isHost}
-                            isSeated={isSeated}
-                            isMuted={isMuted}
-                            onToggleMute={handleToggleMute}
-                        />
-                         <Playlist 
-                            items={playlist}
-                            canControl={canControl}
-                            onPlay={handlePlayFromPlaylist}
-                            onRemove={handleRemoveFromPlaylist}
-                            currentVideoUrl={videoUrl}
-                        />
+                    <div className="lg:col-span-1 min-h-0 flex flex-col gap-4">
+                        <div className="min-h-0 lg:grid lg:grid-rows-2 gap-4 flex-grow">
+                           <Chat 
+                                roomId={roomId} 
+                                user={user} 
+                                isHost={isHost}
+                                isSeated={isSeated}
+                                isMuted={isMuted}
+                                onToggleMute={handleToggleMute}
+                            />
+                             <Playlist 
+                                items={playlist}
+                                canControl={canControl}
+                                onPlay={handlePlayFromPlaylist}
+                                onRemove={handleRemoveFromPlaylist}
+                                currentVideoUrl={videoUrl}
+                            />
+                        </div>
+                        <ViewerInfo members={viewers} />
                     </div>
                 </div>
             )}
