@@ -9,7 +9,7 @@ import Player from './Player';
 import Chat from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
-import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard } from 'lucide-react';
+import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard, Plus, ListMusic } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AudioConference, useLiveKitRoom, useLocalParticipant, useParticipants } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
@@ -24,6 +24,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import VideoConference from './VideoConference';
 import { AppUser, getFriends, sendRoomInvitation } from '@/lib/firebase-service';
 import YouTube, { YouTubePlayer } from 'react-youtube';
+import Playlist, { PlaylistItem } from './Playlist';
 
 
 export type Member = { 
@@ -93,7 +94,7 @@ const RoomHeader = ({ onSearchClick, roomId, onLeaveRoom, onSwitchToVideo, onSwi
             {!videoMode && canControl && (
                 <Button onClick={onSearchClick} variant="outline">
                     <Youtube className="me-2" />
-                    بحث يوتيوب
+                    إضافة فيديو
                 </Button>
             )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -116,11 +117,13 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [seatedMembers, setSeatedMembers] = useState<SeatedMember[]>([]);
   const [videoUrl, setVideoUrl] = useState('');
+  const [playlist, setPlaylist] = useState<PlaylistItem[]>([]);
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const [hostName, setHostName] = useState('');
   const [moderators, setModerators] = useState<string[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [urlInput, setUrlInput] = useState('');
   const [searchResults, setResults] = useState<YouTubeVideo[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -198,6 +201,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         
         const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
         listeners.push(onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || '')));
+
+        const playlistRef = ref(database, `rooms/${roomId}/playlist`);
+        listeners.push(onValue(playlistRef, (snapshot) => setPlaylist(snapshot.exists() ? Object.values(snapshot.val()) : [])));
 
         const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
         listeners.push(onValue(playerStateRef, (snapshot) => setPlayerState(snapshot.val())));
@@ -323,8 +329,15 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       let finalUrl = videoIdentifier;
       // Check if it's a valid URL, otherwise treat it as a video ID
       try {
-        new URL(videoIdentifier);
+        const parsedUrl = new URL(videoIdentifier);
+        if (parsedUrl.hostname === 'youtu.be' || parsedUrl.hostname.includes('youtube.com')) {
+          const videoId = parsedUrl.hostname === 'youtu.be' 
+            ? parsedUrl.pathname.slice(1) 
+            : parsedUrl.searchParams.get('v');
+          if (videoId) finalUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        }
       } catch (_) {
+        // Not a valid URL, assume it's a youtube video ID
         finalUrl = `https://www.youtube.com/watch?v=${videoIdentifier}`;
       }
 
@@ -357,9 +370,85 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     }
   };
 
+  const handleAddToPlaylistFromSearch = (video: YouTubeVideo) => {
+      const newItem: PlaylistItem = {
+        id: video.id.videoId,
+        videoId: video.id.videoId,
+        title: video.snippet.title,
+        thumbnail: video.snippet.thumbnails.default.url,
+      };
+      const playlistRef = ref(database, `rooms/${roomId}/playlist/${newItem.id}`);
+      set(playlistRef, newItem);
+      toast({ title: "تمت الإضافة", description: `تمت إضافة "${video.snippet.title}" إلى قائمة التشغيل.` });
+  };
+  
+  const handleAddUrlToPlaylist = async (url: string) => {
+    if (!url.trim()) return;
+
+    let videoId = null;
+    let title = url;
+    let thumbnail = `https://picsum.photos/seed/${Math.random()}/120/68`; // generic placeholder
+    
+    try {
+        const parsedUrl = new URL(url);
+        if (parsedUrl.hostname.includes('youtube.com') || parsedUrl.hostname === 'youtu.be') {
+            videoId = parsedUrl.hostname === 'youtu.be'
+                ? parsedUrl.pathname.slice(1)
+                : parsedUrl.searchParams.get('v');
+            
+            if (videoId) {
+                const results = await searchYoutube({ query: videoId });
+                if (results.items.length > 0) {
+                    title = results.items[0].snippet.title;
+                    thumbnail = results.items[0].snippet.thumbnails.default.url;
+                }
+            }
+        }
+    } catch(e) { /* Not a URL, do nothing special */ }
+
+    const newItem: PlaylistItem = {
+        id: videoId || url, // Use URL as ID if not youtube
+        videoId: videoId || url,
+        title: title,
+        thumbnail: thumbnail,
+    };
+
+    const playlistRef = ref(database, `rooms/${roomId}/playlist/${btoa(newItem.id)}`);
+    set(playlistRef, newItem);
+    toast({ title: "تمت الإضافة", description: `تمت إضافة فيديو إلى قائمة التشغيل.` });
+    setUrlInput('');
+  };
+
+  const handlePlayFromPlaylist = (item: PlaylistItem) => {
+    onSetVideo(item.videoId);
+  };
+
+  const handleRemoveFromPlaylist = (itemId: string) => {
+      const playlistRef = ref(database, `rooms/${roomId}/playlist/${btoa(itemId)}`);
+      remove(playlistRef);
+  };
+
   const handleVideoEnded = () => {
     if (!canControl) return;
-    onSetVideo('');
+
+    const currentVideoId = videoUrl.includes('v=') ? new URL(videoUrl).searchParams.get('v') : null;
+    
+    if (playlist.length > 0) {
+        let nextVideoIndex = 0;
+        if (currentVideoId) {
+            const currentIndex = playlist.findIndex(item => item.videoId === currentVideoId);
+            if (currentIndex !== -1 && currentIndex < playlist.length - 1) {
+                nextVideoIndex = currentIndex + 1;
+            } else {
+                 // It was the last video, or not in playlist, so clear the screen.
+                 onSetVideo('');
+                 return;
+            }
+        }
+        onSetVideo(playlist[nextVideoIndex].videoId);
+    } else {
+        onSetVideo('');
+    }
   };
 
   const handleKickUser = (userNameToKick: string) => {
@@ -457,8 +546,8 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                  <VideoConference />
                </div>
             ) : (
-                <div className="grid lg:grid-cols-3 gap-4 h-full min-h-0">
-                    <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
+                <div className="grid lg:grid-cols-4 gap-4 h-full min-h-0">
+                    <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
                         <Player 
                             videoUrl={videoUrl} 
                             onSetVideo={onSetVideo} 
@@ -484,7 +573,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                         />
                         <ViewerInfo members={viewers} />
                     </div>
-                    <div className="min-h-0">
+                    <div className="min-h-0 lg:grid lg:grid-rows-2 gap-4">
                        <Chat 
                             roomId={roomId} 
                             user={user} 
@@ -492,6 +581,13 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                             isSeated={isSeated}
                             isMuted={isMuted}
                             onToggleMute={handleToggleMute}
+                        />
+                         <Playlist 
+                            items={playlist}
+                            canControl={canControl}
+                            onPlay={handlePlayFromPlaylist}
+                            onRemove={handleRemoveFromPlaylist}
+                            currentVideoUrl={videoUrl}
                         />
                     </div>
                 </div>
@@ -540,16 +636,31 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
         <DialogContent className="max-w-4xl p-0">
           <DialogHeader className="p-6 pb-0">
-            <DialogTitle>بحث يوتيوب</DialogTitle>
+            <DialogTitle>إضافة فيديو</DialogTitle>
             <DialogDescription>
-              ابحث عن مقاطع فيديو من يوتيوب لتشغيلها في الغرفة.
+                ابحث في يوتيوب أو الصق رابط فيديو من أي موقع.
             </DialogDescription>
           </DialogHeader>
-          <div className="p-6 pt-4">
+          <div className="p-6 pt-4 space-y-4">
+            <div className="flex gap-2">
+                <Input
+                    type="text"
+                    placeholder="الصق رابط فيديو هنا..."
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    className="bg-input"
+                />
+                <Button onClick={() => handleAddUrlToPlaylist(urlInput)}><Plus/></Button>
+            </div>
+             <div className="relative flex py-2 items-center">
+              <div className="flex-grow border-t border-border"></div>
+              <span className="flex-shrink mx-4 text-muted-foreground text-xs">أو</span>
+              <div className="flex-grow border-t border-border"></div>
+            </div>
             <form onSubmit={handleSearchSubmit} className="flex gap-2">
               <Input
                 type="text"
-                placeholder="ابحث..."
+                placeholder="ابحث في يوتيوب..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-input"
@@ -589,7 +700,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                     </div>
                   </div>
                 ) : (
-                  <p>ابحث عن فيديو لبدء الحفلة.</p>
+                  <p>ابحث عن فيديو لإضافته إلى قائمة التشغيل.</p>
                 )}
               </div>
             )}
@@ -611,18 +722,21 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                       <h3 className="font-semibold text-foreground truncate">
                         {video.snippet.title}
                       </h3>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {video.snippet.description}
-                      </p>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setPreviewVideo(video)}
-                    >
-                      <Play className="me-2 h-4 w-4" />
-                      معاينة
-                    </Button>
+                     <div className="flex items-center gap-1">
+                        <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setPreviewVideo(video)}
+                        >
+                            <Play className="me-2 h-4 w-4" />
+                            معاينة
+                        </Button>
+                        <Button size="sm" onClick={() => handleAddToPlaylistFromSearch(video)}>
+                            <ListMusic className="me-2 h-4 w-4" />
+                            إضافة
+                        </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -654,10 +768,16 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                         className="w-full h-full"
                     />
                 </div>
-                <Button onClick={handleSetVideoFromPreview} size="lg" className="w-full">
-                    <Clapperboard className="me-2" />
-                    عرض للجميع
-                </Button>
+                 <div className="flex gap-2">
+                    <Button onClick={() => handleAddToPlaylistFromSearch(previewVideo)} variant="secondary" size="lg" className="w-full">
+                        <ListMusic className="me-2" />
+                        إضافة إلى القائمة
+                    </Button>
+                    <Button onClick={handleSetVideoFromPreview} size="lg" className="w-full">
+                        <Clapperboard className="me-2" />
+                        عرض للجميع الآن
+                    </Button>
+                </div>
             </DialogContent>
         </Dialog>
     )}
@@ -666,7 +786,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 }
 
 
-const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?: boolean }) => {
+const RoomClient = ({ roomId, videoMode = false }: { roomId, videoMode?: boolean }) => {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUserSession();
   const [token, setToken] = useState('');
@@ -813,3 +933,5 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 };
 
 export default RoomClient;
+
+    

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { User } from '@/app/providers';
-import { Trash2, Send, Mic, MicOff } from 'lucide-react';
+import { Trash2, Send, Mic, MicOff, MessageCircle } from 'lucide-react';
 import { filterProfanity } from '@/ai/flows/profanity-filter';
 import {
   AlertDialog,
@@ -98,15 +98,15 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
   };
 
   return (
-    <Card className="h-full flex flex-col bg-card border-none rounded-t-2xl">
+    <Card className="h-full flex flex-col bg-card/80 backdrop-blur-lg">
       <CardHeader className="flex flex-row items-center justify-between p-4">
-        <CardTitle className="text-lg">الدردشة</CardTitle>
+        <CardTitle className="text-lg flex items-center gap-2"><MessageCircle className="text-accent" /><span>الدردشة</span></CardTitle>
         {isHost && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="sm">
                   <Trash2 className="me-2 text-destructive" />
-                  مسح الدردشة
+                  مسح
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -167,3 +167,5 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
 };
 
 export default Chat;
+
+    

@@ -48,7 +48,6 @@ function getYouTubeVideoId(url: string): string | null {
 
 const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, onPlayerStateChange, onVideoEnded }: PlayerProps) => {
   const videoId = useMemo(() => getYouTubeVideoId(videoUrl), [videoUrl]);
-  const [localVideoUrl, setLocalVideoUrl] = useState('');
   const playerRef = useRef<YouTubePlayer | null>(null);
   const isPlayerReady = useRef(false);
   const isSeekingRef = useRef(false);
@@ -202,13 +201,6 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
       setProgress(currentTime); // Update progress on pause
     }
   };
-
-  const handleUrlSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (localVideoUrl.trim() && canControl) {
-      onSetVideo(localVideoUrl.trim());
-    }
-  };
   
   const formatTime = (seconds: number) => {
     if (isNaN(seconds) || seconds < 0) return '00:00';
@@ -263,29 +255,11 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
         {canControl ? (
           <div className='w-full max-w-lg'>
             <Film className="h-16 w-16 mb-4 mx-auto" />
-            <h3 className="text-xl font-bold text-foreground">شاشة السينما</h3>
-            <p className='mb-4'>ابحث عن فيديو في يوتيوب أو الصق رابط فيلم لبدء العرض.</p>
-            <form onSubmit={handleUrlSubmit} className="flex gap-2 mb-4">
-              <Input
-                type="text"
-                placeholder="الصق رابط فيلم هنا..."
-                value={localVideoUrl}
-                onChange={(e) => setLocalVideoUrl(e.target.value)}
-                className="bg-input border-border focus:ring-accent"
-              />
-              <Button type="submit">
-                <Play className="me-2 h-4 w-4" />
-                تشغيل
-              </Button>
-            </form>
-             <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-border"></div>
-              <span className="flex-shrink mx-4 text-muted-foreground text-xs">أو</span>
-              <div className="flex-grow border-t border-border"></div>
-            </div>
+            <h3 className="text-xl font-bold text-foreground">شاشة السينما فارغة</h3>
+            <p className='mb-4'>أضف فيديو من يوتيوب أو الصق رابط فيلم لبدء العرض.</p>
             <Button onClick={onSearchClick} className="w-full" variant="secondary">
               <Search className="me-2 h-4 w-4" />
-              بحث في يوتيوب
+              إضافة فيديو
             </Button>
           </div>
         ) : (
@@ -299,7 +273,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   }
 
   const renderCustomControls = () => {
-    if (!canControl || !videoId) return null;
+    if (!canControl || !videoUrl) return null;
 
     return (
       <div 
@@ -355,5 +329,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
 };
 
 export default Player;
+
+    
 
     
