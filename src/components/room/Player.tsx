@@ -152,7 +152,6 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
           className="w-full h-full border-0"
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
           allowFullScreen
-          sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-presentation"
         ></iframe>
       );
     }
@@ -201,6 +200,9 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   return (
     <div className="aspect-video w-full rounded-lg overflow-hidden shadow-md bg-black relative">
       {renderContent()}
+      {!canControl && videoUrl && (
+        <div className="absolute inset-0 w-full h-full bg-transparent z-10" />
+      )}
     </div>
   );
 };
