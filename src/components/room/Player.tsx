@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import YouTube, { YouTubePlayer } from 'react-youtube';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Play, Search, Film, Pause, Forward, Rewind } from 'lucide-react';
 import { PlayerState } from './RoomClient';
@@ -19,6 +18,32 @@ interface PlayerProps {
   onVideoEnded: () => void;
 }
 
+type UrlType = 'youtube' | 'direct' | 'iframe' | 'empty';
+
+function getUrlType(url: string): UrlType {
+    if (!url) return 'empty';
+    try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname;
+        const pathname = urlObj.pathname;
+        
+        if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) {
+            return 'youtube';
+        }
+        if (pathname.endsWith('.mp4') || pathname.endsWith('.webm') || pathname.endsWith('.ogv') || pathname.endsWith('.m3u8')) {
+            return 'direct';
+        }
+
+    } catch (e) {
+      // Not a valid URL, might be youtube ID
+      if (url.match(/^[a-zA-Z0-9_-]{11}$/)) {
+        return 'youtube';
+      }
+    }
+    return 'iframe';
+}
+
+
 function getYouTubeVideoId(url: string): string | null {
   if (!url) return null;
   try {
@@ -29,8 +54,7 @@ function getYouTubeVideoId(url: string): string | null {
     }
     if (hostname === 'www.youtube.com' || hostname === 'youtube.com') {
       if (urlObj.pathname === '/watch') {
-        const videoId = urlObj.searchParams.get('v');
-        if (videoId) return videoId;
+        return urlObj.searchParams.get('v');
       }
       if (urlObj.pathname.startsWith('/embed/')) {
         return urlObj.pathname.split('/embed/')[1].split('?')[0];
@@ -47,52 +71,151 @@ function getYouTubeVideoId(url: string): string | null {
 }
 
 const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, onPlayerStateChange, onVideoEnded }: PlayerProps) => {
-  const videoId = useMemo(() => getYouTubeVideoId(videoUrl), [videoUrl]);
-  const playerRef = useRef<YouTubePlayer | null>(null);
+  const urlType = useMemo(() => getUrlType(videoUrl), [videoUrl]);
+  const videoId = useMemo(() => (urlType === 'youtube' ? getYouTubeVideoId(videoUrl) : null), [videoUrl, urlType]);
+
+  const ytPlayerRef = useRef<YouTubePlayer | null>(null);
+  const htmlPlayerRef = useRef<HTMLVideoElement | null>(null);
   const isPlayerReady = useRef(false);
   const isSeekingRef = useRef(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hostSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
+  
   const [showControls, setShowControls] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  // --- Generic Player Control ---
+  const getCurrentPlayerTime = () => {
+    if (ytPlayerRef.current) return ytPlayerRef.current.getCurrentTime();
+    if (htmlPlayerRef.current) return htmlPlayerRef.current.currentTime;
+    return 0;
+  }
+  const getPlayerState = () => {
+     if (ytPlayerRef.current) return ytPlayerRef.current.getPlayerState();
+     if (htmlPlayerRef.current) return htmlPlayerRef.current.paused ? 2 : 1;
+     return -1; // unstarted
+  }
+
+  // --- Syncing Logic ---
   const handleStateChange = useCallback((isPlaying: boolean, seekTime: number) => {
     if (canControl) {
       onPlayerStateChange({ isPlaying, seekTime });
     }
   }, [canControl, onPlayerStateChange]);
 
-  const togglePlay = useCallback(() => {
-    const player = playerRef.current;
-    if (!player || !canControl) return;
+  // Effect for syncing remote state to local player (for viewers)
+  useEffect(() => {
+    if (canControl || !playerState || !isPlayerReady.current) return;
 
-    const playerStatus = player.getPlayerState();
-    if (playerStatus === 1) { // Playing
-      player.pauseVideo();
-    } else { // Paused, Buffering, Cued
-      player.playVideo();
+    let player: YouTubePlayer | HTMLVideoElement | null = null;
+    let getStatus: () => number = () => -1; // -1: unstarted, 0: ended, 1: playing, 2: paused
+    let play: () => void = () => {};
+    let pause: () => void = () => {};
+    let seek: (time: number) => void = () => {};
+    let getCurrentTime: () => number = () => 0;
+
+    if (urlType === 'youtube' && ytPlayerRef.current) {
+        player = ytPlayerRef.current;
+        getStatus = () => player!.getPlayerState();
+        play = () => player!.playVideo();
+        pause = () => player!.pauseVideo();
+        seek = (time) => player!.seekTo(time, true);
+        getCurrentTime = () => player!.getCurrentTime();
+    } else if (urlType === 'direct' && htmlPlayerRef.current) {
+        player = htmlPlayerRef.current;
+        getStatus = () => player!.paused ? 2 : 1;
+        play = () => player!.play().catch(console.error);
+        pause = () => player!.pause();
+        seek = (time) => { player!.currentTime = time; };
+        getCurrentTime = () => player!.currentTime;
     }
-  }, [canControl]);
+
+    if (!player) return;
+
+    const playerStatus = getStatus();
+
+    // Sync play/pause state
+    if (playerState.isPlaying && playerStatus !== 1 && playerStatus !== 3) { // 3 is buffering for YT
+        play();
+    } else if (!playerState.isPlaying && playerStatus === 1) {
+        pause();
+    }
+
+    // Sync seek time, accounting for latency
+    const hostTime = playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
+    const currentTime = getCurrentTime();
+    
+    if (Math.abs(currentTime - hostTime) > 2) {
+      isSeekingRef.current = true;
+      seek(hostTime);
+      setTimeout(() => { isSeekingRef.current = false; }, 1000);
+    }
+  }, [playerState, canControl, urlType]);
+
+  // Effect for host to update progress bar and sync state periodically
+  useEffect(() => {
+    if (canControl && isPlayerReady.current && playerState?.isPlaying) {
+      hostSyncIntervalRef.current = setInterval(() => {
+        if (isSeekingRef.current) return;
+        const currentTime = getCurrentPlayerTime();
+        if (currentTime !== null && !isNaN(currentTime)) {
+            setProgress(currentTime);
+            // Periodically sync host time to prevent drift
+            onPlayerStateChange({ seekTime: currentTime });
+        }
+      }, 1000);
+    } else {
+      if (hostSyncIntervalRef.current) {
+        clearInterval(hostSyncIntervalRef.current);
+      }
+    }
+
+    return () => {
+      if (hostSyncIntervalRef.current) clearInterval(hostSyncIntervalRef.current);
+    };
+  }, [canControl, playerState?.isPlaying, onPlayerStateChange]);
+  
+  // Update local progress for viewers
+  useEffect(() => {
+    if (!canControl && playerState) {
+        const newProgress = playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
+        if (newProgress <= duration) {
+            setProgress(newProgress);
+        }
+    }
+  }, [playerState, canControl, duration]);
+
+  // --- Player Controls ---
+  const togglePlay = useCallback(() => {
+    if (!canControl) return;
+    const playerStatus = getPlayerState();
+    handleStateChange(playerStatus !== 1, getCurrentPlayerTime());
+  }, [canControl, handleStateChange]);
 
   const seek = useCallback((amount: number) => {
-    const player = playerRef.current;
-    if (!player || !canControl) return;
-    const currentTime = player.getCurrentTime();
+    if (!canControl) return;
+    const currentTime = getCurrentPlayerTime();
     const newTime = Math.max(0, currentTime + amount);
-    player.seekTo(newTime, true);
-    handleStateChange(player.getPlayerState() === 1, newTime);
+    
+    if (ytPlayerRef.current) ytPlayerRef.current.seekTo(newTime, true);
+    if (htmlPlayerRef.current) htmlPlayerRef.current.currentTime = newTime;
+
+    handleStateChange(getPlayerState() === 1, newTime);
   }, [canControl, handleStateChange]);
 
   const handleSliderChange = (value: number[]) => {
-    if (!playerRef.current || !canControl) return;
+    if (!canControl) return;
     const newTime = value[0];
-    setProgress(newTime); // Optimistically update slider
-    playerRef.current.seekTo(newTime, true);
-    handleStateChange(playerRef.current.getPlayerState() === 1, newTime);
+    setProgress(newTime);
+    
+    if (ytPlayerRef.current) ytPlayerRef.current.seekTo(newTime, true);
+    if (htmlPlayerRef.current) htmlPlayerRef.current.currentTime = newTime;
+    
+    handleStateChange(getPlayerState() === 1, newTime);
   };
   
+  // --- UI Controls ---
   const hideControlsAfterDelay = () => {
     if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
@@ -103,105 +226,60 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   };
 
   const toggleControls = () => {
-      if (!canControl || !videoUrl) return;
+      if (!canControl || urlType === 'empty' || urlType === 'iframe') return;
       setShowControls(true);
       hideControlsAfterDelay();
   };
-
-  // Effect for syncing remote state to local player (for viewers)
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!player || !playerState || !isPlayerReady.current || canControl) return;
-
-    const playerStatus = player.getPlayerState();
-    
-    // Sync play/pause state
-    if (playerState.isPlaying && playerStatus !== 1 && playerStatus !== 3) {
-      player.playVideo();
-    } else if (!playerState.isPlaying && playerStatus === 1) {
-      player.pauseVideo();
-    }
-
-    // Sync seek time, accounting for latency
-    const hostTime = playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
-    const currentTime = player.getCurrentTime();
-
-    if (Math.abs(currentTime - hostTime) > 2) {
-      isSeekingRef.current = true;
-      player.seekTo(hostTime, true);
-      setTimeout(() => { isSeekingRef.current = false; }, 1000);
-    }
-  }, [playerState, canControl]);
-
-  // Effect for host to update progress bar and sync state periodically
-  useEffect(() => {
-    if (canControl && playerRef.current && playerState?.isPlaying) {
-      intervalRef.current = setInterval(() => {
-        const player = playerRef.current;
-        if (player) {
-          const currentTime = player.getCurrentTime() || 0;
-          setProgress(currentTime);
-          // Periodically sync host time to prevent drift
-          onPlayerStateChange({ seekTime: currentTime });
-        }
-      }, 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    }
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [canControl, playerState?.isPlaying, onPlayerStateChange]);
   
-  // Update local progress for viewers
-  useEffect(() => {
-    if (!canControl && playerState) {
-        setProgress(playerState.seekTime + (Date.now() - playerState.timestamp) / 1000);
-    }
-  }, [playerState, canControl]);
-
-
-  const onReady = (event: { target: YouTubePlayer }) => {
-    playerRef.current = event.target;
+  // --- YouTube Player Event Handlers ---
+  const onYtReady = (event: { target: YouTubePlayer }) => {
+    ytPlayerRef.current = event.target;
     isPlayerReady.current = true;
-    const videoDuration = event.target.getDuration();
-    setDuration(videoDuration);
-
+    setDuration(event.target.getDuration());
     if (playerState) {
-        // Calculate initial seek time considering time passed since last update
         const initialSeekTime = playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
-        const validSeekTime = Math.min(initialSeekTime, videoDuration);
-
-        event.target.seekTo(validSeekTime, true);
-        
-        if (playerState.isPlaying) {
-            event.target.playVideo();
-        } else {
-            event.target.pauseVideo();
-        }
+        event.target.seekTo(initialSeekTime, true);
+        if (playerState.isPlaying) event.target.playVideo();
     }
   };
 
-  const onStateChange = (event: { data: number }) => {
-    const player = playerRef.current;
-    if (!canControl || !player || isSeekingRef.current) return;
-    
-    const currentTime = player.getCurrentTime();
-
+  const onYtStateChange = (event: { data: number }) => {
+    if (!canControl || isSeekingRef.current) return;
+    const currentTime = ytPlayerRef.current?.getCurrentTime() ?? 0;
     if (event.data === 0) { // Ended
       onVideoEnded();
       handleStateChange(false, 0);
-    } else if (event.data === 1) { // Playing
-      handleStateChange(true, currentTime);
-    } else if (event.data === 2) { // Paused
-      handleStateChange(false, currentTime);
-      setProgress(currentTime); // Update progress on pause
+    } else if (event.data === 1 || event.data === 2) { // Playing or Paused
+      handleStateChange(event.data === 1, currentTime);
+      setProgress(currentTime);
+    }
+  };
+
+  // --- HTML5 Player Event Handlers ---
+  const onHtmlReady = () => {
+    if (!htmlPlayerRef.current) return;
+    isPlayerReady.current = true;
+    setDuration(htmlPlayerRef.current.duration);
+    if (playerState) {
+        const initialSeekTime = playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
+        htmlPlayerRef.current.currentTime = initialSeekTime;
+        if (playerState.isPlaying) htmlPlayerRef.current.play().catch(console.error);
     }
   };
   
+  const onHtmlStateChange = () => {
+      if (!canControl || isSeekingRef.current || !htmlPlayerRef.current) return;
+      handleStateChange(!htmlPlayerRef.current.paused, htmlPlayerRef.current.currentTime);
+      setProgress(htmlPlayerRef.current.currentTime);
+  };
+
+  const onHtmlEnded = () => {
+    if (!canControl) return;
+    onVideoEnded();
+    handleStateChange(false, 0);
+  }
+
+  // --- Rendering ---
   const formatTime = (seconds: number) => {
     if (isNaN(seconds) || seconds < 0) return '00:00';
     const date = new Date(0);
@@ -210,70 +288,89 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     return date.toISOString().substr(hasHours ? 11 : 14, hasHours ? 8 : 5);
   };
 
-
   const renderContent = () => {
-    if (videoId) {
-      return (
-        <YouTube
-          key={videoId}
-          videoId={videoId}
-          opts={{
-            height: '100%',
-            width: '100%',
-            playerVars: {
-              autoplay: 1,
-              controls: 0,
-              rel: 0,
-              showinfo: 0,
-              modestbranding: 1,
-              iv_load_policy: 3,
-              disablekb: 1,
-            },
-          }}
-          onReady={onReady}
-          onStateChange={onStateChange}
-          className="w-full h-full"
-        />
-      );
+    switch(urlType) {
+        case 'youtube':
+            if (!videoId) return renderEmptyState('Invalid YouTube URL');
+            return (
+                <YouTube
+                  key={videoId}
+                  videoId={videoId}
+                  opts={{
+                    height: '100%',
+                    width: '100%',
+                    playerVars: {
+                      autoplay: 1,
+                      controls: 0,
+                      rel: 0,
+                      showinfo: 0,
+                      modestbranding: 1,
+                      iv_load_policy: 3,
+                      disablekb: 1,
+                    },
+                  }}
+                  onReady={onYtReady}
+                  onStateChange={onYtStateChange}
+                  className="w-full h-full"
+                />
+            );
+        
+        case 'direct':
+            return (
+                <video
+                    ref={htmlPlayerRef}
+                    src={videoUrl}
+                    className="w-full h-full"
+                    onLoadedData={onHtmlReady}
+                    onPlay={onHtmlStateChange}
+                    onPause={onHtmlStateChange}
+                    onEnded={onHtmlEnded}
+                    playsInline
+                    autoPlay
+                />
+            );
+
+        case 'iframe':
+             return (
+              <iframe
+                src={videoUrl}
+                title="Shared Content"
+                className="w-full h-full border-0"
+                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                allowFullScreen
+                sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-presentation"
+              ></iframe>
+            );
+
+        case 'empty':
+        default:
+            return renderEmptyState();
     }
+  };
 
-    if (videoUrl) {
-        return (
-          <iframe
-            src={videoUrl}
-            title="Shared Content"
-            className="w-full h-full border-0"
-            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-            allowFullScreen
-            sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-presentation"
-          ></iframe>
-        );
-      }
-
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-4 text-center">
-        {canControl ? (
-          <div className='w-full max-w-lg'>
-            <Film className="h-16 w-16 mb-4 mx-auto" />
-            <h3 className="text-xl font-bold text-foreground">شاشة السينما فارغة</h3>
-            <p className='mb-4'>أضف فيديو من يوتيوب أو الصق رابط فيلم لبدء العرض.</p>
-            <Button onClick={onSearchClick} className="w-full" variant="secondary">
-              <Search className="me-2 h-4 w-4" />
-              إضافة فيديو
-            </Button>
-          </div>
-        ) : (
-          <>
-            <Film className="h-16 w-16 mb-4" />
-            <p className="text-lg">ينتظر المضيف لبدء الفيلم...</p>
-          </>
-        )}
-      </div>
-    );
-  }
+  const renderEmptyState = (message?: string) => (
+    <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-4 text-center">
+      {canControl ? (
+        <div className='w-full max-w-lg'>
+          <Film className="h-16 w-16 mb-4 mx-auto" />
+          <h3 className="text-xl font-bold text-foreground">شاشة السينما فارغة</h3>
+          <p className='mb-4'>{message || 'أضف فيديو من يوتيوب أو الصق رابط فيلم لبدء العرض.'}</p>
+          <Button onClick={onSearchClick} className="w-full" variant="secondary">
+            <Search className="me-2 h-4 w-4" />
+            إضافة فيديو
+          </Button>
+        </div>
+      ) : (
+        <>
+          <Film className="h-16 w-16 mb-4" />
+          <p className="text-lg">ينتظر المضيف لبدء الفيلم...</p>
+        </>
+      )}
+    </div>
+  );
 
   const renderCustomControls = () => {
-    if (!canControl || !videoUrl) return null;
+    if (!canControl || urlType === 'empty' || urlType === 'iframe') return null;
 
     return (
       <div 
@@ -283,10 +380,8 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
         )}
         onMouseMove={hideControlsAfterDelay}
       >
-        {/* Top Spacer */}
         <div></div>
 
-        {/* Center Controls */}
         <div className="flex items-center justify-center gap-8">
             <Button onClick={() => seek(-10)} size="icon" variant="ghost" className="text-white hover:bg-white/20 hover:text-white rounded-full w-16 h-16">
                 <Rewind className="w-8 h-8" />
@@ -299,7 +394,6 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
             </Button>
         </div>
 
-        {/* Bottom Controls */}
         <div className="flex items-center gap-4 text-white font-mono text-sm">
            <span>{formatTime(progress)}</span>
            <Slider
@@ -329,7 +423,3 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
 };
 
 export default Player;
-
-    
-
-    

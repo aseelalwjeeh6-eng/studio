@@ -327,19 +327,8 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const onSetVideo = useCallback((videoIdentifier: string, startTime = 0) => {
     if (canControl) {
       let finalUrl = videoIdentifier;
-      // Check if it's a valid URL, otherwise treat it as a video ID
-      try {
-        new URL(videoIdentifier);
-        // It's a full URL
-        if (videoIdentifier.includes('youtube.com') || videoIdentifier.includes('youtu.be')) {
-            const parsedUrl = new URL(videoIdentifier);
-            const videoId = parsedUrl.hostname === 'youtu.be'
-                ? parsedUrl.pathname.slice(1)
-                : parsedUrl.searchParams.get('v');
-            if (videoId) finalUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        }
-      } catch (_) {
-        // Not a valid URL, assume it's a youtube video ID
+      // Check if it's a valid youtube URL, otherwise treat it as a video ID or direct link
+      if (!finalUrl.startsWith('http')) {
         finalUrl = `https://www.youtube.com/watch?v=${videoIdentifier}`;
       }
 
