@@ -660,7 +660,6 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?: boolean }) => {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUserSession();
-  const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState('');
   const { toast } = useToast();
   
@@ -673,38 +672,41 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
     let isMounted = true;
 
-    const setupRoom = async () => {
+    // We start fetching the token immediately
+    fetch(`/api/livekit?room=${roomId}&username=${user.name}`)
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`Failed to fetch token: ${res.statusText}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (isMounted) {
+          setToken(data.token);
+        }
+      })
+      .catch(error => {
+        console.error("Error fetching LiveKit token:", error);
+        if (isMounted) {
+          toast({ title: 'خطأ في الاتصال', description: 'فشل جلب مفتاح الاتصال بالغرفة.', variant: 'destructive' });
+          router.push('/lobby');
+        }
+      });
+
+    // We also set up the database connection concurrently
+    const setupDatabase = async () => {
         try {
-            // First, ensure user is in the database for presence
             await goOnline(database);
             const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
             const memberData = { name: user.name, avatarId: user.avatarId || 'avatar1', joinedAt: serverTimestamp() };
             await set(userRef, memberData);
             onDisconnect(userRef).remove();
-
-            // Then, fetch the LiveKit token
-            const tokenResp = await fetch(`/api/livekit?room=${roomId}&username=${user.name}`);
-            if (!tokenResp.ok) {
-              throw new Error(`Failed to fetch token: ${tokenResp.statusText}`);
-            }
-            const tokenData = await tokenResp.json();
-            if (isMounted) {
-                setToken(tokenData.token);
-            }
         } catch (error) {
-            console.error("Error setting up room:", error);
-            if (isMounted) {
-                toast({ title: 'خطأ في الغرفة', description: 'فشل الاتصال بالغرفة. يرجى المحاولة مرة أخرى.', variant: 'destructive' });
-                router.push('/lobby');
-            }
-        } finally {
-            if (isMounted) {
-              setIsLoading(false);
-            }
+            console.error("Error setting up Firebase presence:", error);
         }
     };
 
-    setupRoom();
+    setupDatabase();
 
     return () => {
         isMounted = false;
@@ -720,7 +722,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     };
 }, [isUserLoaded, user, roomId, router, toast]);
 
-  if (isLoading || !isUserLoaded || !user) {
+  if (!isUserLoaded || !user || !token) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-accent" />
