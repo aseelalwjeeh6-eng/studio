@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, FormEvent, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { database } from '@/lib/firebase';
-import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction, update, off, Unsubscribe } from 'firebase/database';
+import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction, update, off, Unsubscribe, remove } from 'firebase/database';
 import useUserSession from '@/hooks/use-user-session';
 import Player from './Player';
 import Chat from './Chat';
@@ -29,7 +29,7 @@ import YouTube, { YouTubePlayer } from 'react-youtube';
 export type Member = { 
   name: string;
   avatarId?: string;
-  joinedAt: object;
+  joinedAt: any; // Can be a server timestamp object or a number
 };
 
 export type SeatedMember = {
@@ -399,10 +399,14 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }
 
   const handleTransferHost = (userName: string) => {
-      if (!isHost) return;
-      const roomRef = ref(database, `rooms/${roomId}/host`);
-      set(roomRef, userName);
-      handleDemote(userName); // Demote from moderator if they were one
+      if (!isHost || !userName) return;
+      const updates: { [key: string]: any } = {};
+      updates[`/rooms/${roomId}/host`] = userName;
+      // Also make the old host a moderator
+      const newModerators = [...moderators.filter(m => m !== userName), hostName];
+      updates[`/rooms/${roomId}/moderators`] = newModerators;
+
+      update(ref(database), updates);
       toast({ title: "تم نقل الملكية", description: `أصبحت الغرفة الآن ملك ${userName}.` });
   }
 
@@ -449,6 +453,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                         />
                          <Seats 
                             seatedMembers={seatedMembers}
+                            hostName={hostName}
                             moderators={moderators}
                             onTakeSeat={handleTakeSeat}
                             onLeaveSeat={handleLeaveSeat}
@@ -522,7 +527,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             <DialogDescription>
               ابحث عن مقاطع فيديو من يوتيوب لتشغيلها في الغرفة.
             </DialogDescription>
-            <form onSubmit={handleSearchSubmit} className="flex gap-2 pt-4">
+          </DialogHeader>
+          <div className="p-6 pt-4">
+            <form onSubmit={handleSearchSubmit} className="flex gap-2">
               <Input
                 type="text"
                 placeholder="ابحث..."
@@ -535,8 +542,8 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                 {isSearching ? <Loader2 className="animate-spin" /> : <Search />}
               </Button>
             </form>
-          </DialogHeader>
-          <div className="p-6 pt-2 max-h-[60vh] overflow-y-auto">
+          </div>
+          <div className="px-6 pb-6 max-h-[50vh] overflow-y-auto">
             {isSearching && (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-accent" />
@@ -656,24 +663,67 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     }
 
     let isMounted = true;
-    let memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+    const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
+    const hostRef = ref(database, `rooms/${roomId}/host`);
 
     const setupRoom = async () => {
-        const roomRef = ref(database, `rooms/${roomId}`);
-        const roomSnapshot = await get(roomRef);
+        const roomSnapshot = await get(ref(database, `rooms/${roomId}`));
 
         if (!roomSnapshot.exists()) {
             toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
             router.push('/lobby');
             return;
         }
+        
+        const currentHost = roomSnapshot.val().host;
 
         // Setup presence and fetch LiveKit token in parallel
         const presencePromise = (async () => {
             await goOnline(database);
             const memberData = { name: user.name, avatarId: user.avatarId || 'avatar1', joinedAt: serverTimestamp() };
             await set(memberRef, memberData);
-            onDisconnect(memberRef).remove();
+
+            const disconnectRef = onDisconnect(memberRef);
+            disconnectRef.remove();
+
+            // If the current user is the host, set up automatic host transfer on disconnect
+            if (user.name === currentHost) {
+                const hostDisconnectRef = onDisconnect(hostRef);
+                hostDisconnectRef.set(new Promise(async (resolve) => {
+                    const membersRef = ref(database, `rooms/${roomId}/members`);
+                    const membersSnapshot = await get(membersRef);
+                    const membersData: Member[] = membersSnapshot.exists() ? Object.values(membersSnapshot.val()) : [];
+                    
+                    const moderatorsRef = ref(database, `rooms/${roomId}/moderators`);
+                    const moderatorsSnapshot = await get(moderatorsRef);
+                    const moderators: string[] = moderatorsSnapshot.exists() ? moderatorsSnapshot.val() : [];
+
+                    // Filter out the disconnecting host
+                    const remainingMembers = membersData.filter(m => m.name !== user.name);
+                    
+                    if (remainingMembers.length === 0) {
+                        // If no one is left, the room will be empty. We can let it be removed later or clean it up.
+                        // Here we can remove the entire room on disconnect if host is last one.
+                        onDisconnect(ref(database, `rooms/${roomId}`)).remove();
+                        resolve(null); // No new host
+                        return;
+                    }
+
+                    // Prioritize moderators
+                    const potentialModeratorHosts = remainingMembers.filter(m => moderators.includes(m.name));
+                    if (potentialModeratorHosts.length > 0) {
+                        // Sort by joinedAt to get the oldest moderator
+                        potentialModeratorHosts.sort((a, b) => (a.joinedAt as number) - (b.joinedAt as number));
+                        resolve(potentialModeratorHosts[0].name);
+                        return;
+                    }
+
+                    // If no moderators, pick the oldest member
+                    remainingMembers.sort((a, b) => (a.joinedAt as number) - (b.joinedAt as number));
+                    resolve(remainingMembers[0].name);
+
+                }));
+            }
         })();
 
         const tokenFetchPromise = (async () => {
@@ -711,14 +761,21 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     return () => {
         isMounted = false;
         // The onDisconnect handles removal, but we can also do it client-side for faster cleanup.
-        // The check for snapshot existence is to prevent errors if the component unmounts quickly.
         get(memberRef).then(snapshot => {
             if (snapshot.exists()) {
+                const isHost = snapshot.val().name === hostRef.parent?.key;
+                 if (isHost) {
+                    // Manual trigger for host transfer logic if component unmounts gracefully
+                 }
                 remove(memberRef);
             }
         }).finally(() => {
             goOffline(database);
         });
+        // Important: Cancel all onDisconnect() operations when the component unmounts cleanly
+        onDisconnect(memberRef).cancel();
+        onDisconnect(hostRef).cancel();
+        onDisconnect(ref(database, `rooms/${roomId}`)).cancel();
     };
 }, [isUserLoaded, user, roomId, router, toast]);
 

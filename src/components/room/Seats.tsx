@@ -27,6 +27,7 @@ const Seat = ({
     seatId,
     seatedMember, 
     participant,
+    hostName,
     moderators,
     onTakeSeat,
     currentUser,
@@ -42,6 +43,7 @@ const Seat = ({
     seatId: number;
     seatedMember?: SeatedMember;
     participant?: Participant;
+    hostName: string;
     moderators: string[];
     onTakeSeat: (seatId: number) => void;
     currentUser: UserSession;
@@ -56,6 +58,7 @@ const Seat = ({
 }) => {
     const isOccupied = !!seatedMember;
     const isCurrentUserSeatedHere = isOccupied && seatedMember.name === currentUser.name;
+    const isMemberHost = seatedMember?.name === hostName;
     
     const isMemberModerator = seatedMember ? moderators.includes(seatedMember.name) : false;
     const isCurrentUserModerator = moderators.includes(currentUser.name);
@@ -65,7 +68,7 @@ const Seat = ({
     
     const avatar = PlaceHolderImages.find(p => p.id === seatedMember?.avatarId) ?? PlaceHolderImages[0];
 
-    const canKick = (isHost || isCurrentUserModerator) && seatedMember && seatedMember.name !== currentUser.name && (!moderators.includes(seatedMember.name) || isHost);
+    const canKick = (isHost || isCurrentUserModerator) && seatedMember && seatedMember.name !== currentUser.name && !isMemberHost && (!moderators.includes(seatedMember.name) || isHost);
     
     const handleRemoteMute = () => {
         if (!participant || !room) return;
@@ -79,7 +82,7 @@ const Seat = ({
 
     const controls = (isHost || (isCurrentUserModerator && !isMemberModerator)) && participant && !isCurrentUserSeatedHere && (
         <DropdownMenuContent>
-            {isHost && (
+            {isHost && !isMemberHost && (
                 <>
                     {isMemberModerator ? (
                         <DropdownMenuItem onClick={() => onDemote(seatedMember!.name)}>
@@ -126,9 +129,12 @@ const Seat = ({
             )}
             
             {canKick && (
-                <DropdownMenuItem onClick={() => onKickUser(seatedMember!.name)} className="text-destructive">
-                    <ShieldX className="me-2" /> طرد من الغرفة
-                </DropdownMenuItem>
+                 <>
+                    {!isMuted && <DropdownMenuSeparator />}
+                    <DropdownMenuItem onClick={() => onKickUser(seatedMember!.name)} className="text-destructive">
+                        <ShieldX className="me-2" /> طرد من الغرفة
+                    </DropdownMenuItem>
+                 </>
             )}
         </DropdownMenuContent>
     );
@@ -171,8 +177,8 @@ const Seat = ({
     const nameText = isOccupied ? (isCurrentUserSeatedHere ? "أنت" : seatedMember.name) : "شاغر";
     const getRoleIcon = () => {
         if(!seatedMember) return null;
-        if(isHost && seatedMember.name === currentUser.name) return <Crown className='w-4 h-4 text-yellow-400' />;
-        if(isMemberModerator) return <ShieldCheck className='w-4 h-4 text-blue-400' />;
+        if(isMemberHost) return <Crown className='w-4 h-4 text-yellow-400' title="المضيف" />;
+        if(isMemberModerator) return <ShieldCheck className='w-4 h-4 text-blue-400' title="مشرف" />;
         return null;
     }
     const roleIcon = getRoleIcon();
@@ -210,6 +216,7 @@ const Seat = ({
 
 const Seats = ({ 
     seatedMembers, 
+    hostName,
     moderators,
     onTakeSeat, 
     onLeaveSeat, 
@@ -222,6 +229,7 @@ const Seats = ({
     room,
 }: { 
     seatedMembers: SeatedMember[],
+    hostName: string,
     moderators: string[],
     onTakeSeat: (seatId: number) => void;
     onLeaveSeat: () => void;
@@ -265,10 +273,11 @@ const Seats = ({
                         seatId={seatId}
                         seatedMember={seatedMember} 
                         participant={participant}
+                        hostName={hostName}
                         moderators={moderators}
                         onTakeSeat={onTakeSeat}
                         currentUser={currentUser}
-                        isHost={isHost || seatedMember?.name === currentUser.name}
+                        isHost={isHost}
                         onKickUser={onKickUser}
                         isCurrentUserSeated={isCurrentUserSeated}
                         onLeaveSeat={onLeaveSeat}
