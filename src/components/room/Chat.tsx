@@ -130,7 +130,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
             </div>
         )) : (
             <div className="flex h-full items-center justify-center text-muted-foreground">
-            <p>لا توجد رسائل بعد. ابدأ المحادثة!</p>
+                <p>لا توجد رسائل بعد. ابدأ المحادثة!</p>
             </div>
         )}
         <div ref={chatEndRef} />
