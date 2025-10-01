@@ -135,6 +135,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const { toast } = useToast();
   const { room } = useLiveKitRoom();
   const { localParticipant } = useLocalParticipant();
+  const participants = useParticipants();
 
   const isHost = user?.name === hostName;
   const isModerator = user ? moderators.includes(user.name) : false;
@@ -151,9 +152,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }, [seatedMembers, user]);
   
   const isMuted = useMemo(() => {
-      if (!localParticipant) return true;
-      return localParticipant.isMicrophoneMuted;
-  }, [localParticipant, localParticipant?.isMicrophoneMuted]);
+      const participant = [localParticipant, ...participants].find(p => p.identity === user?.name);
+      return participant ? participant.isMicrophoneMuted : true;
+  }, [localParticipant, participants, user?.name]);
 
 
   const handleLeaveRoom = () => {
@@ -267,9 +268,12 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   };
 
   const handleToggleMute = () => {
-    if (isSeated && localParticipant) {
-        const isEnabled = localParticipant.isMicrophoneEnabled;
-        localParticipant.setMicrophoneEnabled(!isEnabled);
+    if (isSeated) {
+        const participant = [localParticipant, ...participants].find(p => p.identity === user?.name);
+        if (participant) {
+            const isEnabled = participant.isMicrophoneEnabled;
+            participant.setMicrophoneEnabled(!isEnabled);
+        }
     }
   };
 
@@ -320,7 +324,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       set(ref(database, `rooms/${roomId}/playerState`), { 
         isPlaying: true, 
         seekTime: startTime, 
-        timestamp: Date.now()
+        timestamp: serverTimestamp() 
       });
     }
   }, [canControl, roomId]);
@@ -330,7 +334,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
         runTransaction(playerStateRef, (currentState) => {
             const current = currentState || { isPlaying: false, seekTime: 0 };
-            return { ...current, ...newState, timestamp: Date.now() };
+            return { ...current, ...newState, timestamp: serverTimestamp() };
         });
     }
   }, [canControl, roomId]);
@@ -366,9 +370,14 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   
   const handleOpenInviteDialog = async () => {
     if (!user) return;
-    const friendsData = await getFriends(user.name);
-    setFriends(friendsData);
-    setIsInviteOpen(true);
+    try {
+      const friendsData = await getFriends(user.name);
+      setFriends(friendsData);
+      setInvitedFriends(new Set()); // Reset invited state on open
+      setIsInviteOpen(true);
+    } catch(error) {
+      toast({ title: "خطأ", description: "فشل في جلب قائمة الأصدقاء.", variant: "destructive" });
+    }
   };
 
   const handleSendInvitation = async (recipientName: string) => {
@@ -645,7 +654,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         </Dialog>
     )}
 </div>
-  )
+  );
 }
 
 
@@ -669,6 +678,8 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     const setupRoom = async () => {
         const roomSnapshot = await get(ref(database, `rooms/${roomId}`));
 
+        if (!isMounted) return;
+        
         if (!roomSnapshot.exists()) {
             toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
             router.push('/lobby');
@@ -689,24 +700,19 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             // If the current user is the host, set up automatic host transfer on disconnect
             if (user.name === currentHost) {
                 const hostDisconnectRef = onDisconnect(hostRef);
-                hostDisconnectRef.set(new Promise(async (resolve) => {
-                    const membersRef = ref(database, `rooms/${roomId}/members`);
-                    const membersSnapshot = await get(membersRef);
-                    const membersData: Member[] = membersSnapshot.exists() ? Object.values(membersSnapshot.val()) : [];
-                    
-                    const moderatorsRef = ref(database, `rooms/${roomId}/moderators`);
-                    const moderatorsSnapshot = await get(moderatorsRef);
-                    const moderators: string[] = moderatorsSnapshot.exists() ? moderatorsSnapshot.val() : [];
+                hostDisconnectRef.set(get(ref(database, `rooms/${roomId}`)).then(snapshot => {
+                    if (!snapshot.exists()) return null; // Room was deleted
+
+                    const membersData: Member[] = Object.values(snapshot.val().members || {});
+                    const moderators: string[] = snapshot.val().moderators || [];
 
                     // Filter out the disconnecting host
                     const remainingMembers = membersData.filter(m => m.name !== user.name);
                     
                     if (remainingMembers.length === 0) {
-                        // If no one is left, the room will be empty. We can let it be removed later or clean it up.
-                        // Here we can remove the entire room on disconnect if host is last one.
+                        // If no one is left, schedule room deletion
                         onDisconnect(ref(database, `rooms/${roomId}`)).remove();
-                        resolve(null); // No new host
-                        return;
+                        return null; // No new host
                     }
 
                     // Prioritize moderators
@@ -714,14 +720,12 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                     if (potentialModeratorHosts.length > 0) {
                         // Sort by joinedAt to get the oldest moderator
                         potentialModeratorHosts.sort((a, b) => (a.joinedAt as number) - (b.joinedAt as number));
-                        resolve(potentialModeratorHosts[0].name);
-                        return;
+                        return potentialModeratorHosts[0].name;
                     }
 
                     // If no moderators, pick the oldest member
                     remainingMembers.sort((a, b) => (a.joinedAt as number) - (b.joinedAt as number));
-                    resolve(remainingMembers[0].name);
-
+                    return remainingMembers[0].name;
                 }));
             }
         })();
@@ -761,17 +765,8 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     return () => {
         isMounted = false;
         // The onDisconnect handles removal, but we can also do it client-side for faster cleanup.
-        get(memberRef).then(snapshot => {
-            if (snapshot.exists()) {
-                const isHost = snapshot.val().name === hostRef.parent?.key;
-                 if (isHost) {
-                    // Manual trigger for host transfer logic if component unmounts gracefully
-                 }
-                remove(memberRef);
-            }
-        }).finally(() => {
-            goOffline(database);
-        });
+        remove(memberRef).catch(() => {}); // Cleanly remove user on unmount
+        goOffline(database);
         // Important: Cancel all onDisconnect() operations when the component unmounts cleanly
         onDisconnect(memberRef).cancel();
         onDisconnect(hostRef).cancel();

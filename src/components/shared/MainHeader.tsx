@@ -124,8 +124,10 @@ export function MainHeader() {
       );
 
       trulyNew.forEach((notif) => {
+        if (!notif.id) return;
         displayedToasts.current.add(notif.id);
         toast({
+          id: notif.id,
           title: notif.title,
           description: notif.body,
           action: {
@@ -171,7 +173,9 @@ export function MainHeader() {
         
         // Optimistically update UI
         setNotifications(prev => prev.filter(n => n.id !== notification.id));
-        displayedToasts.current.delete(notification.id);
+        if (displayedToasts.current.has(notification.id)) {
+            displayedToasts.current.delete(notification.id);
+        }
 
     } catch (error) {
         console.error("Failed to handle notification click:", error);
@@ -259,17 +263,14 @@ export function MainHeader() {
                 <DropdownMenuSeparator />
                 {notifications.length > 0 ? (
                     notifications.map((notif) => (
-                        <DropdownMenuItem key={notif.id} className="flex justify-between items-center cursor-pointer" onSelect={(e) => { e.preventDefault(); handleNotificationClick(notif); }}>
-                           <div className="flex items-center">
-                             {notif.type === 'friendRequest' ? <UserPlus className="me-2 text-accent" /> : <LogIn className="me-2 text-accent" />}
+                        <DropdownMenuItem key={notif.id} className="flex justify-between items-start cursor-pointer p-3" onSelect={(e) => { e.preventDefault(); handleNotificationClick(notif); }}>
+                           <div className="flex items-start">
+                             {notif.type === 'friendRequest' ? <UserPlus className="me-3 mt-1 text-accent flex-shrink-0" /> : <LogIn className="me-3 mt-1 text-accent flex-shrink-0" />}
                              <div className='flex flex-col'>
                                 <span className='font-semibold'>{notif.title}</span>
-                                <span className='text-xs text-muted-foreground'>{notif.body}</span>
+                                <span className='text-xs text-muted-foreground whitespace-normal'>{notif.body}</span>
                              </div>
                            </div>
-                           <Button size="sm" variant="ghost">
-                                {notif.type === 'friendRequest' ? "عرض" : "انضمام"}
-                           </Button>
                         </DropdownMenuItem>
                     ))
                 ) : (

@@ -54,7 +54,7 @@ export type AppNotification = {
 const getUsersRef = (db: Database) => ref(db, 'users');
 const getUserRef = (db: Database, username: string) => ref(db, `users/${username}`);
 
-const getUserData = async (username: string): Promise<AppUser | null> => {
+export const getUserData = async (username: string): Promise<AppUser | null> => {
   const userRef = getUserRef(database, username);
   const snapshot = await get(userRef);
   return snapshot.exists() ? snapshot.val() : null;
@@ -225,9 +225,9 @@ export const getNotifications = async (username: string): Promise<AppNotificatio
     const notifications: AppNotification[] = [];
 
     if (data.friendRequests) {
-        Object.values(data.friendRequests).forEach(req => {
+        Object.entries(data.friendRequests).forEach(([key, req]) => {
             notifications.push({
-                id: req.id,
+                id: key, // Use the key from Firebase as the ID
                 type: 'friendRequest',
                 title: 'طلب صداقة جديد',
                 body: `${req.senderName} يريد أن يصبح صديقك.`,
@@ -239,9 +239,9 @@ export const getNotifications = async (username: string): Promise<AppNotificatio
     }
 
     if (data.invitations) {
-        Object.values(data.invitations).forEach(inv => {
+        Object.entries(data.invitations).forEach(([key, inv]) => {
             notifications.push({
-                id: inv.id,
+                id: key, // Use the key from Firebase as the ID
                 type: 'roomInvitation',
                 title: `دعوة إلى ${inv.roomName}`,
                 body: `${inv.senderName} يدعوك للانضمام.`,
@@ -298,6 +298,3 @@ export const createRoom = async ({ hostName, roomId }: CreateRoomInput): Promise
 
     return roomId;
 };
-
-
-export { getUserData };
