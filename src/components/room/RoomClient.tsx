@@ -9,7 +9,7 @@ import Player from './Player';
 import Chat from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
-import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard, Pause } from 'lucide-react';
+import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AudioConference, useLiveKitRoom, useLocalParticipant, useParticipants } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
@@ -316,12 +316,24 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   
   const onSetVideo = useCallback((url: string, startTime = 0) => {
     if (canControl) {
-      const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
-      set(videoUrlRef, url);
-      const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
-      set(playerStateRef, { isPlaying: true, seekTime: startTime, timestamp: Date.now() });
+      set(ref(database, `rooms/${roomId}/videoUrl`), url);
+      set(ref(database, `rooms/${roomId}/playerState`), { 
+        isPlaying: true, 
+        seekTime: startTime, 
+        timestamp: serverTimestamp() 
+      });
     }
   }, [canControl, roomId]);
+  
+  const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
+    if (canControl) {
+        const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
+        // We use update here to avoid overwriting the whole object if other fields exist
+        runTransaction(playerStateRef, (currentState) => {
+            return { ...(currentState || {}), ...newState, timestamp: Date.now() };
+        });
+    }
+  };
 
   const handleSetVideoFromPreview = () => {
     if (previewPlayerRef.current && previewVideo) {
@@ -329,13 +341,6 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       onSetVideo(`https://www.youtube.com/watch?v=${previewVideo.id.videoId}`, currentTime);
       setPreviewVideo(null); // Close preview dialog
       setIsSearchOpen(false); // Close search dialog
-    }
-  };
-  
-  const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
-    if (canControl) {
-      const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
-      update(playerStateRef, {...newState, timestamp: Date.now() });
     }
   };
 
@@ -510,99 +515,97 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
 
     <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
-        <DialogContent className="max-w-none w-screen h-screen m-0 p-0 !rounded-none flex flex-col bg-background">
-            <DialogHeader className="p-4 border-b border-border sticky top-0 bg-background z-10">
-                <div className="flex items-center justify-between">
-                     <div className="flex items-center gap-4 flex-grow">
-                        <DialogTitle className="sr-only">بحث يوتيوب</DialogTitle>
-                        <DialogDescription className="sr-only">
-                        ابحث عن مقاطع فيديو من يوتيوب لتشغيلها في الغرفة.
-                        </DialogDescription>
-                        <form onSubmit={handleSearchSubmit} className="flex-grow flex items-center gap-2">
-                            <Input
-                                type="text"
-                                placeholder="ابحث في يوتيوب..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="h-12 text-lg bg-input border-border focus:ring-accent flex-grow"
-                                disabled={isSearching}
-                            />
-                            <Button type="submit" size="icon" className="h-12 w-12" disabled={isSearching}>
-                                {isSearching ? <Loader2 className="h-6 w-6 animate-spin" /> : <Search className="h-6 w-6" />}
-                            </Button>
-                        </form>
+        <DialogContent className="max-w-4xl p-0">
+          <DialogHeader className="p-6 pb-0">
+            <DialogTitle>بحث يوتيوب</DialogTitle>
+            <DialogDescription>
+              ابحث عن مقاطع فيديو من يوتيوب لتشغيلها في الغرفة.
+            </DialogDescription>
+            <form onSubmit={handleSearchSubmit} className="flex gap-2 pt-4">
+              <Input
+                type="text"
+                placeholder="ابحث..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-input"
+                disabled={isSearching}
+              />
+              <Button type="submit" disabled={isSearching}>
+                {isSearching ? <Loader2 className="animate-spin" /> : <Search />}
+              </Button>
+            </form>
+          </DialogHeader>
+          <div className="p-6 pt-2 max-h-[60vh] overflow-y-auto">
+            {isSearching && (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-accent" />
+              </div>
+            )}
+            {searchError && (
+              <div className="text-center text-destructive py-8">{searchError}</div>
+            )}
+            {!isSearching && !searchError && searchResults.length === 0 && (
+              <div className="text-center text-muted-foreground py-8">
+                {searchHistory.length > 0 ? (
+                  <div>
+                    <h3 className="font-semibold mb-2">سجل البحث الأخير</h3>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {searchHistory.map((term, i) => (
+                        <Button
+                          key={i}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleHistoryClick(term)}
+                        >
+                          <History className="me-2 h-4 w-4" />
+                          {term}
+                        </Button>
+                      ))}
                     </div>
-                    <Button variant="ghost" size="icon" className="h-12 w-12 ms-4" onClick={() => setIsSearchOpen(false)}>
-                        <X className="h-6 w-6" />
+                  </div>
+                ) : (
+                  <p>ابحث عن فيديو لبدء الحفلة.</p>
+                )}
+              </div>
+            )}
+            {searchResults.length > 0 && (
+              <div className="space-y-3">
+                {searchResults.map((video) => (
+                  <div
+                    key={video.id.videoId}
+                    className="flex items-center gap-4 p-2 rounded-lg bg-secondary/50"
+                  >
+                    <Image
+                      src={video.snippet.thumbnails.default.url}
+                      alt={video.snippet.title}
+                      width={120}
+                      height={68}
+                      className="rounded-lg aspect-video object-cover"
+                    />
+                    <div className="flex-grow overflow-hidden">
+                      <h3 className="font-semibold text-foreground truncate">
+                        {video.snippet.title}
+                      </h3>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {video.snippet.description}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setPreviewVideo(video)}
+                    >
+                      <Play className="me-2 h-4 w-4" />
+                      معاينة
                     </Button>
-                </div>
-            </DialogHeader>
-            <div className="flex-grow overflow-y-auto">
-                {isSearching && (
-                    <div className="flex items-center justify-center h-full">
-                        <Loader2 className="h-12 w-12 animate-spin text-accent" />
-                    </div>
-                )}
-                {searchError && (
-                    <div className="flex items-center justify-center h-full p-4">
-                        <p className="text-center text-destructive text-lg">{searchError}</p>
-                    </div>
-                )}
-                {!isSearching && !searchError && searchResults.length === 0 && searchHistory.length > 0 && (
-                    <div className="p-6">
-                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-muted-foreground"><History/> سجل البحث</h2>
-                        <div className="flex flex-col gap-3">
-                            {searchHistory.map((term, index) => (
-                                <button
-                                    key={index}
-                                    onClick={() => handleHistoryClick(term)}
-                                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary text-start w-full"
-                                >
-                                    <History className="text-muted-foreground" />
-                                    <span className="text-lg text-foreground">{term}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-                 {!isSearching && !searchError && searchResults.length === 0 && searchHistory.length === 0 && (
-                     <div className="p-6 text-center text-muted-foreground">
-                        <p>لا يوجد سجل بحث حتى الآن. ابدأ البحث للعثور على مقاطع الفيديو المفضلة لديك.</p>
-                    </div>
-                )}
-                {searchResults.length > 0 && (
-                    <div className="max-w-4xl mx-auto p-4">
-                        <div className="flex flex-col gap-4">
-                            {searchResults.map((video) => (
-                                <div
-                                key={video.id.videoId}
-                                className="flex items-center gap-4 p-3 rounded-lg bg-card/50"
-                                >
-                                <Image
-                                    src={video.snippet.thumbnails.default.url}
-                                    alt={video.snippet.title}
-                                    width={120}
-                                    height={68}
-                                    className="rounded-lg aspect-video object-cover"
-                                />
-                                <div className="flex-grow">
-                                    <h3 className="text-md font-semibold text-foreground line-clamp-2">{video.snippet.title}</h3>
-                                    <p className="text-sm text-muted-foreground line-clamp-1">{video.snippet.description}</p> 
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                     <Button size="sm" variant="secondary" onClick={() => setPreviewVideo(video)}>
-                                        <Play className="me-2 h-4 w-4" />
-                                        معاينة وتشغيل
-                                    </Button>
-                                </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </DialogContent>
-    </Dialog>
+      </Dialog>
+
 
     {previewVideo && (
         <Dialog open={!!previewVideo} onOpenChange={(isOpen) => !isOpen && setPreviewVideo(null)}>
@@ -664,21 +667,30 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         })();
 
         const tokenFetchPromise = (async () => {
-            const res = await fetch(`/api/livekit?room=${roomId}&username=${user.name}`);
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Failed to fetch token: ${res.statusText} - ${errorText}`);
-            }
-            const data = await res.json();
-            if (isMounted) {
-                setToken(data.token);
+            try {
+                const res = await fetch(`/api/livekit?room=${roomId}&username=${user.name}`);
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`Failed to fetch token: ${res.statusText} - ${errorText}`);
+                }
+                const data = await res.json();
+                if (isMounted) {
+                    setToken(data.token);
+                }
+            } catch (error) {
+                 if (isMounted) {
+                    console.error("Error fetching LiveKit token:", error);
+                    toast({ title: 'خطأ في الاتصال', description: 'فشل في الحصول على رمز الدخول للغرفة الصوتية.', variant: 'destructive' });
+                 }
             }
         })();
 
         try {
-            await Promise.all([dbSetupPromise, tokenFetchPromise]);
+            await dbSetupPromise;
+            // Token fetch is not awaited here to allow UI to render faster.
+            // The LiveKitRoom component handles the loading state.
         } catch (error) {
-            console.error("Error setting up room:", error);
+            console.error("Error setting up room database part:", error);
             if (isMounted) {
                 toast({ title: 'خطأ في الاتصال', description: 'فشل في تهيئة الغرفة.', variant: 'destructive' });
                 router.push('/lobby');

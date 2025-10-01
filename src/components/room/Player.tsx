@@ -83,6 +83,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     playerRef.current = event.target;
     isPlayerReady.current = true;
     if (playerState && playerRef.current) {
+        // For viewers joining late, seek to the current time, adjusted for time passed since last update
         const initialSeekTime = playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
         playerRef.current.seekTo(initialSeekTime, true);
         if (playerState.isPlaying) {
@@ -94,6 +95,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   };
   
   const onStateChange = (event: { data: number }) => {
+      // Only the host should emit state changes
       if (!canControl || !playerRef.current || isSeekingRef.current) return;
       
       const currentTime = playerRef.current.getCurrentTime();
@@ -105,10 +107,10 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
 
       switch (event.data) {
           case 1: // Playing
-              onPlayerStateChange({ isPlaying: true, seekTime: currentTime, timestamp: Date.now() });
+              onPlayerStateChange({ isPlaying: true, seekTime: currentTime });
               break;
           case 2: // Paused
-              onPlayerStateChange({ isPlaying: false, seekTime: currentTime, timestamp: Date.now() });
+              onPlayerStateChange({ isPlaying: false, seekTime: currentTime });
               break;
       }
   };
@@ -123,12 +125,13 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   const togglePlay = () => {
     if (!canControl || !playerRef.current) return;
     const playerStatus = playerRef.current.getPlayerState();
-    if (playerStatus === 1) {
+    if (playerStatus === 1) { // is playing
       playerRef.current.pauseVideo();
     } else {
       playerRef.current.playVideo();
     }
   };
+
 
   const renderContent = () => {
     if (isYoutubeLink && videoId) {
@@ -140,13 +143,13 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
                 height: '100%',
                 width: '100%',
                 playerVars: {
-                  autoplay: 1,
-                  controls: 0, // Disable all YouTube controls
+                  autoplay: canControl ? 1 : 0, // Autoplay for host, viewers sync to host state
+                  controls: 0, 
                   rel: 0,
                   showinfo: 0,
                   modestbranding: 1,
                   iv_load_policy: 3,
-                  disablekb: 1, // Disable keyboard controls
+                  disablekb: 1, 
                 },
             }}
             onReady={onReady}
@@ -156,12 +159,13 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
       );
     }
 
+    // For non-YouTube embeds
     if (!isYoutubeLink && videoUrl) {
       return (
         <iframe
           src={videoUrl}
           title="Shared Content"
-          className="w-full h-full border-0 pointer-events-none" // pointer-events-none for non-youtube
+          className="w-full h-full border-0 pointer-events-none" // pointer-events-none to prevent clicks
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
           allowFullScreen
         ></iframe>
@@ -214,23 +218,21 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
 
     return (
       <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
-        <Button onClick={togglePlay} size="icon" className="rounded-full">
+        <Button onClick={togglePlay} size="icon" className="rounded-full bg-black/50 hover:bg-black/80 text-white">
           {playerState?.isPlaying ? <Pause /> : <Play />}
         </Button>
-        <div className="bg-black/50 text-white px-2 py-1 rounded-md text-xs">
-          {playerState?.isPlaying ? "تشغيل" : "متوقف"}
-        </div>
       </div>
     );
   };
 
-
   return (
     <div className="aspect-video w-full rounded-lg overflow-hidden shadow-md bg-black relative">
       {renderContent()}
+      {/* This overlay prevents ANY clicks on the video player itself, for everyone. */}
       {videoUrl && (
         <div className="absolute inset-0 w-full h-full bg-transparent z-10" />
       )}
+      {/* Custom controls are on a higher z-index, so they are clickable by the host. */}
       {renderCustomControls()}
     </div>
   );
