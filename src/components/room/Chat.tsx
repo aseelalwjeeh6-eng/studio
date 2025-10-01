@@ -87,7 +87,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-card rounded-lg p-4">
+    <div className="flex flex-col h-full w-full bg-card/50 backdrop-blur-lg rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold flex items-center gap-2"><MessageCircle className="text-accent" /><span>الدردشة</span></h2>
             {isHost && (
