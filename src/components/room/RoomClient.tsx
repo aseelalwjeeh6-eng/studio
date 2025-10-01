@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from '../ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages, ImagePlaceholder } from '@/lib/placeholder-images';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
 import VideoConference from './VideoConference';
 import { AppUser, getFriends, sendRoomInvitation } from '@/lib/firebase-service';
 import YouTube, { YouTubePlayer } from 'react-youtube';
@@ -72,6 +72,17 @@ const RoomHeader = ({ onSearchClick, onPlaylistClick, roomId, onLeaveRoom, onSwi
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="bg-card/80 backdrop-blur-lg">
+                         <DropdownMenuItem onClick={onInviteClick}>
+                            <Users className="me-2" />
+                            دعوة أصدقاء
+                        </DropdownMenuItem>
+                        {canControl && (
+                            <DropdownMenuItem onClick={onBackgroundClick}>
+                                <Wallpaper className="me-2"/>
+                                تغيير الخلفية
+                            </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
                         {videoMode ? (
                             <DropdownMenuItem onClick={onSwitchToPlayer}>
                                 <Film className="me-2" /> العودة للمشاهدة
@@ -86,16 +97,6 @@ const RoomHeader = ({ onSearchClick, onPlaylistClick, roomId, onLeaveRoom, onSwi
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
-                <Button onClick={onInviteClick} variant="secondary">
-                    <Users className="me-2" />
-                    دعوة أصدقاء
-                </Button>
-                {canControl && (
-                   <Button onClick={onBackgroundClick} variant="secondary">
-                        <Wallpaper className="me-2"/>
-                        تغيير الخلفية
-                   </Button>
-                )}
             </div>
 
             {!videoMode && canControl && (
@@ -258,16 +259,16 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }, []);
 
   const sendSystemMessage = useCallback((text: string) => {
-    if (!roomId || !user) return;
+    if (!roomId) return;
     const chatRef = ref(database, `rooms/${roomId}/chat`);
     const messageData: Message = {
       sender: 'System',
-      text: `${user.name} ${text}`,
+      text, // No user name prefix needed as it's passed from caller
       timestamp: Date.now(),
       isSystemMessage: true,
     };
     push(chatRef, messageData);
-  }, [roomId, user]);
+  }, [roomId]);
 
 
   useEffect(() => {
@@ -298,7 +299,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
           return; 
       }).then((result) => {
           if (result.committed && !currentUserSeat) {
-             sendSystemMessage(`دخل الغرفة`);
+             sendSystemMessage(`${user.name}@ دخل الغرفة`);
           }
       }).catch((error) => {
           console.error("Transaction failed: ", error);
@@ -312,7 +313,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       if (currentUserSeat) {
           const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
           set(seatRef, null).then(() => {
-            sendSystemMessage(`غادر الغرفة`);
+            sendSystemMessage(`${user.name}@ غادر الغرفة`);
           });
       }
   };
@@ -598,14 +599,13 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                 onBackgroundClick={() => setIsBackgroundOpen(true)}
                 canControl={canControl}
             />
-            <main className="w-full max-w-7xl mx-auto flex-grow grid grid-cols-1 md:grid-cols-3 gap-4 px-4 pb-4 min-h-0">
+             <main className="w-full max-w-7xl mx-auto flex-grow grid grid-cols-1 md:grid-cols-3 gap-4 px-4 pb-4 min-h-0">
                 {videoMode ? (
                    <div className="md:col-span-3 rounded-lg overflow-hidden h-full">
                      <VideoConference />
                    </div>
                 ) : (
-                    <>
-                    <div className="md:col-span-2 flex flex-col gap-4 min-h-0">
+                    <div className="md:col-span-3 flex flex-col gap-4 min-h-0">
                         <Player 
                             videoUrl={videoUrl} 
                             onSetVideo={onSetVideo} 
@@ -629,11 +629,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                             onTransferHost={handleTransferHost}
                             room={room}
                         />
-                        <ViewerInfo members={viewers} />
-                    </div>
-                    <div className="md:col-span-1 flex flex-col gap-4 min-h-0">
-                       <div className="flex-grow flex flex-col min-h-0">
-                           <Chat 
+                        <div className="flex-grow flex flex-col gap-4 min-h-0">
+                            <ViewerInfo members={viewers} />
+                            <Chat 
                                 roomId={roomId} 
                                 user={user} 
                                 isHost={isHost}
@@ -641,9 +639,8 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                                 isMuted={isMuted}
                                 onToggleMute={handleToggleMute}
                             />
-                       </div>
+                        </div>
                     </div>
-                    </>
                 )}
 
             </main>
@@ -897,7 +894,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     const chatRef = ref(database, `rooms/${roomId}/chat`);
     const messageData: Message = {
       sender: 'System',
-      text: `${user.name} ${text}`,
+      text,
       timestamp: Date.now(),
       isSystemMessage: true,
     };
@@ -935,8 +932,6 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             const memberData = { name: user.name, avatarId: user.avatarId || 'avatar1', joinedAt: serverTimestamp() };
             await set(memberRef, memberData);
             
-            // Do not send enter message right away, wait for seat
-            // sendSystemMessage(`دخل الغرفة`);
 
             const disconnectRef = onDisconnect(memberRef);
             disconnectRef.remove();
