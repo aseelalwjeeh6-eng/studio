@@ -1,5 +1,5 @@
-import { initializeApp, getApp, getApps } from "firebase/app";
-import { getDatabase } from "firebase/database";
+import { initializeApp, getApp, getApps, type FirebaseApp } from "firebase/app";
+import { getDatabase, type Database } from "firebase/database";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -13,9 +13,16 @@ const firebaseConfig = {
   "measurementId": "G-5G3W9K5153"
 };
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const database = getDatabase(app);
+let app: FirebaseApp;
+let database: Database;
 
+if (!getApps().length) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
+}
+
+database = getDatabase(app);
 
 const getAnalyticsInstance = async () => {
     if (typeof window !== 'undefined') {
@@ -26,6 +33,5 @@ const getAnalyticsInstance = async () => {
     }
     return null;
 }
-
 
 export { app, database, getAnalyticsInstance };
