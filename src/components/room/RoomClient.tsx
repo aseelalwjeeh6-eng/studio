@@ -593,9 +593,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                         onTransferHost={handleTransferHost}
                         room={room}
                     />
-                     <ViewerInfo members={viewers} />
+                    <ViewerInfo members={viewers} />
                 </div>
-                <div className="md:col-span-1 flex flex-col gap-4 min-h-0">
+                <div className="md:col-span-1 flex flex-col min-h-0">
                     <Chat 
                         roomId={roomId} 
                         user={user} 
