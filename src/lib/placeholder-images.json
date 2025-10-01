@@ -73,6 +73,48 @@
       "imageHint": "full moon"
     },
     {
+      "id": "user-bg-1",
+      "description": "Couple silhouette with pink background",
+      "imageUrl": "https://i.ibb.co/dM4XjFm/bg1.png",
+      "imageHint": "couple silhouette"
+    },
+    {
+      "id": "user-bg-2",
+      "description": "Couple under an umbrella in the rain",
+      "imageUrl": "https://i.ibb.co/VvZcWjD/bg2.png",
+      "imageHint": "couple rain"
+    },
+    {
+      "id": "user-bg-3",
+      "description": "Couple with heart balloons in a car",
+      "imageUrl": "https://i.ibb.co/fHnN2wW/bg3.png",
+      "imageHint": "couple car"
+    },
+    {
+      "id": "user-bg-4",
+      "description": "Couple kissing with bokeh lights",
+      "imageUrl": "https://i.ibb.co/gP4zGz2/bg4.png",
+      "imageHint": "couple kissing"
+    },
+    {
+      "id": "user-bg-5",
+      "description": "Couple looking at each other",
+      "imageUrl": "https://i.ibb.co/L05JDWw/bg5.png",
+      "imageHint": "couple romantic"
+    },
+    {
+      "id": "user-bg-6",
+      "description": "Animated couple at night with moon",
+      "imageUrl": "https://i.ibb.co/2nLwSjV/bg6.png",
+      "imageHint": "animated couple"
+    },
+    {
+      "id": "user-bg-7",
+      "description": "Couple hugging with red background",
+      "imageUrl": "https://i.ibb.co/mHk9zD3/bg7.png",
+      "imageHint": "couple hugging"
+    },
+    {
       "id": "bg1",
       "description": "Romantic background with candles",
       "imageUrl": "https://images.unsplash.com/photo-1597053530944-a5c86c3f3505?w=1920&h=1080&fit=crop",

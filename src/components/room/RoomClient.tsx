@@ -9,7 +9,7 @@ import Player from './Player';
 import Chat, { Message } from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
-import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard, Plus, ListMusic, Wallpaper } from 'lucide-react';
+import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard, Plus, ListMusic, Wallpaper, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AudioConference, useLiveKitRoom, useLocalParticipant, useParticipants } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
@@ -177,7 +177,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   
   const isMuted = useMemo(() => {
       const participant = [localParticipant, ...participants].find(p => p.identity === user?.name);
-      return participant ? participant.isMicrophoneEnabled : true;
+      return participant ? !participant.isMicrophoneEnabled : true;
   }, [localParticipant, participants, user?.name]);
 
 
@@ -258,16 +258,16 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }, []);
 
   const sendSystemMessage = useCallback((text: string) => {
-    if (!roomId) return;
+    if (!roomId || !user) return;
     const chatRef = ref(database, `rooms/${roomId}/chat`);
     const messageData: Message = {
       sender: 'System',
-      text: text,
+      text: `${user.name} ${text}`,
       timestamp: Date.now(),
       isSystemMessage: true,
     };
     push(chatRef, messageData);
-  }, [roomId]);
+  }, [roomId, user]);
 
 
   useEffect(() => {
@@ -298,7 +298,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
           return; 
       }).then((result) => {
           if (result.committed && !currentUserSeat) {
-             sendSystemMessage(`${user.name} دخل الغرفة`);
+             sendSystemMessage(`دخل الغرفة`);
           }
       }).catch((error) => {
           console.error("Transaction failed: ", error);
@@ -312,14 +312,14 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       if (currentUserSeat) {
           const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
           set(seatRef, null).then(() => {
-            sendSystemMessage(`${user.name} غادر الغرفة`);
+            sendSystemMessage(`غادر الغرفة`);
           });
       }
   };
 
   const handleToggleMute = () => {
-    if (isSeated) {
-        const participant = [localParticipant, ...participants].find(p => p.identity === user?.name);
+    if (isSeated && user) {
+        const participant = [localParticipant, ...participants].find(p => p.identity === user.name);
         if (participant) {
             const isEnabled = participant.isMicrophoneEnabled;
             participant.setMicrophoneEnabled(!isEnabled);
@@ -561,7 +561,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }
   
   const roomBackgrounds = useMemo(() => {
-    return PlaceHolderImages.filter(p => p.id.startsWith('room-bg'));
+    return [...PlaceHolderImages.filter(p => p.id.startsWith('room-bg')), ...PlaceHolderImages.filter(p => p.id.startsWith('user-bg'))];
   }, []);
 
   if (!isUserLoaded || !user) {
@@ -629,9 +629,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                             onTransferHost={handleTransferHost}
                             room={room}
                         />
+                        <ViewerInfo members={viewers} />
                     </div>
                     <div className="md:col-span-1 flex flex-col gap-4 min-h-0">
-                       <ViewerInfo members={viewers} />
                        <div className="flex-grow flex flex-col min-h-0">
                            <Chat 
                                 roomId={roomId} 
@@ -893,16 +893,16 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const { toast } = useToast();
   
   const sendSystemMessage = useCallback((text: string) => {
-    if (!roomId) return;
+    if (!roomId || !user) return;
     const chatRef = ref(database, `rooms/${roomId}/chat`);
     const messageData: Message = {
       sender: 'System',
-      text: text,
+      text: `${user.name} ${text}`,
       timestamp: Date.now(),
       isSystemMessage: true,
     };
     push(chatRef, messageData);
-  }, [roomId]);
+  }, [roomId, user]);
 
 
   useEffect(() => {
@@ -934,12 +934,12 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             await goOnline(database);
             const memberData = { name: user.name, avatarId: user.avatarId || 'avatar1', joinedAt: serverTimestamp() };
             await set(memberRef, memberData);
-            sendSystemMessage(`${user.name} دخل الغرفة`);
+            
+            // Do not send enter message right away, wait for seat
+            // sendSystemMessage(`دخل الغرفة`);
 
             const disconnectRef = onDisconnect(memberRef);
-            disconnectRef.remove().then(() => {
-              sendSystemMessage(`${user.name} غادر الغرفة`);
-            });
+            disconnectRef.remove();
 
             // If the current user is the host, set up automatic host transfer on disconnect
             if (user.name === currentHost) {
@@ -1019,9 +1019,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         
         // Cleanup on component unmount (e.g., navigating away)
         const memberRefOnUnmount = ref(database, `rooms/${roomId}/members/${user.name}`);
-        remove(memberRefOnUnmount).then(() => {
-          sendSystemMessage(`${user.name} غادر الغرفة`);
-        });
+        remove(memberRefOnUnmount);
 
         goOffline(database);
         
