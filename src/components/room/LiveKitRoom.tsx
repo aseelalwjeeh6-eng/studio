@@ -17,10 +17,19 @@ interface LiveKitRoomProps {
   children: React.ReactNode;
 }
 
+const RoomLayoutWithConnectivity = ({ isSeated, videoMode, children }: Pick<LiveKitRoomProps, 'isSeated' | 'videoMode' | 'children'>) => {
+    const room = useRoomContext();
+    const isConnected = room.connectionState === ConnectionState.Connected;
+
+    // Enable audio/video only when the user is seated AND the room is connected.
+    room.localParticipant.setCameraEnabled(videoMode && isSeated && isConnected);
+    room.localParticipant.setMicrophoneEnabled(isSeated && isConnected);
+
+    return <>{children}</>;
+}
+
+
 const LiveKitRoom = ({ token, serverUrl, user, isSeated, videoMode, children }: LiveKitRoomProps) => {
-  const room = useRoomContext();
-  const isConnected = room.connectionState === ConnectionState.Connected;
-  
   if (!token || !serverUrl) {
     return (
         <div className="flex h-screen items-center justify-center">
@@ -32,15 +41,15 @@ const LiveKitRoom = ({ token, serverUrl, user, isSeated, videoMode, children }: 
 
   return (
     <LiveKitRoomComponent
-      video={videoMode && isSeated && isConnected}
-      audio={isSeated && isConnected}
       token={token}
       serverUrl={serverUrl}
       connect={true}
       connectOptions={{ autoSubscribe: true }}
       data-lk-theme="default"
     >
+      <RoomLayoutWithConnectivity isSeated={isSeated} videoMode={videoMode}>
         {children}
+      </RoomLayoutWithConnectivity>
     </LiveKitRoomComponent>
   );
 };
