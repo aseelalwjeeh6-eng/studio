@@ -18,10 +18,13 @@ export default function VideoConference() {
   const { localParticipant } = useLocalParticipant();
 
   const participants = useMemo(() => {
+    // We need to ensure allParticipants is an array before spreading it.
+    if (!allParticipants) return [localParticipant];
     return [localParticipant, ...allParticipants];
   }, [localParticipant, allParticipants]);
 
-  if (!participants || participants.length === 0) {
+  // Add a specific check to ensure the hook has returned a valid array.
+  if (!allParticipants) {
     return <div className="flex items-center justify-center h-full w-full">
         <Loader2 className="w-10 h-10 animate-spin text-accent" />
         <p className="ms-4">يتم تحميل المشاركين...</p>
