@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, FormEvent, useCallback } from 'react';
+import { useEffect, useState, useMemo, FormEvent, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { database } from '@/lib/firebase';
 import { ref, onValue, set, onDisconnect, serverTimestamp, get, goOnline, goOffline, runTransaction, update, off, Unsubscribe } from 'firebase/database';
@@ -9,7 +9,7 @@ import Player from './Player';
 import Chat from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
-import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play } from 'lucide-react';
+import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AudioConference, useLiveKitRoom, useLocalParticipant, useParticipants } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
@@ -23,6 +23,7 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import VideoConference from './VideoConference';
 import { AppUser, getFriends, sendRoomInvitation } from '@/lib/firebase-service';
+import YouTube, { YouTubePlayer } from 'react-youtube';
 
 
 export type Member = { 
@@ -127,6 +128,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [friends, setFriends] = useState<AppUser[]>([]);
   const [invitedFriends, setInvitedFriends] = useState<Set<string>>(new Set());
+  const [previewVideo, setPreviewVideo] = useState<YouTubeVideo | null>(null);
+  const previewPlayerRef = useRef<YouTubePlayer | null>(null);
+
   
   const { toast } = useToast();
   const { room } = useLiveKitRoom();
@@ -288,8 +292,10 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         updateSearchHistory(query.trim());
       } catch (error) {
           console.error("YouTube search failed:", error);
-          if (error instanceof Error && error.message.includes('YOUTUBE_API_KEY is not set')) {
-              setSearchError("مفتاح واجهة برمجة تطبيقات YouTube غير مهيأ. يرجى إضافته إلى ملف .env للمتابعة.");
+          if (error instanceof Error && error.message.includes('YOUTUBE_API_KEY')) {
+              setSearchError("مفتاح واجهة برمجة تطبيقات YouTube غير مهيأ أو غير صحيح. يرجى إضافته إلى ملف .env للمتابعة.");
+          } else if (error instanceof Error) {
+              setSearchError(`فشل البحث في يوتيوب: ${error.message}`);
           } else {
               setSearchError("فشل البحث في يوتيوب. يرجى المحاولة مرة أخرى.");
           }
@@ -307,15 +313,24 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       setSearchQuery(query);
       performSearch(query);
   };
-
-  const onSetVideo = useCallback((url: string) => {
+  
+  const onSetVideo = useCallback((url: string, startTime = 0) => {
     if (canControl) {
       const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
       set(videoUrlRef, url);
       const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
-      set(playerStateRef, { isPlaying: true, seekTime: 0, timestamp: Date.now() });
+      set(playerStateRef, { isPlaying: true, seekTime: startTime, timestamp: Date.now() });
     }
   }, [canControl, roomId]);
+
+  const handleSetVideoFromPreview = () => {
+    if (previewPlayerRef.current && previewVideo) {
+      const currentTime = previewPlayerRef.current.getCurrentTime();
+      onSetVideo(`https://www.youtube.com/watch?v=${previewVideo.id.videoId}`, currentTime);
+      setPreviewVideo(null); // Close preview dialog
+      setIsSearchOpen(false); // Close search dialog
+    }
+  };
   
   const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
     if (canControl) {
@@ -389,7 +404,6 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     return PlaceHolderImages.find(p => p.id === user.avatarId) ?? PlaceHolderImages[0];
   }
 
-
   if (!isUserLoaded || !user) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -399,111 +413,110 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }
 
   return (
-        <div className="flex flex-col h-screen w-full bg-background items-center">
-            <RoomHeader 
-                onSearchClick={() => setIsSearchOpen(true)} 
-                roomId={roomId}
-                onLeaveRoom={handleLeaveRoom}
-                onSwitchToVideo={handleSwitchToVideo}
-                onSwitchToPlayer={handleSwitchToPlayer}
-                videoMode={videoMode}
-                onInviteClick={handleOpenInviteDialog}
-                canControl={canControl}
-            />
-            <main className="w-full max-w-7xl mx-auto flex-grow flex flex-col gap-4 px-4 pb-4">
-                {videoMode ? (
-                   <div className="flex-grow rounded-lg overflow-hidden">
-                     <VideoConference />
-                   </div>
-                ) : (
-                    <div className="grid lg:grid-cols-3 gap-4 h-full min-h-0">
-                        <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
-                            <Player 
-                                videoUrl={videoUrl} 
-                                onSetVideo={onSetVideo} 
-                                canControl={canControl} 
-                                onSearchClick={() => setIsSearchOpen(true)}
-                                playerState={playerState}
-                                onPlayerStateChange={handlePlayerStateChange}
-                                onVideoEnded={handleVideoEnded}
-                            />
-                             <Seats 
-                                seatedMembers={seatedMembers}
-                                moderators={moderators}
-                                onTakeSeat={handleTakeSeat}
-                                onLeaveSeat={handleLeaveSeat}
-                                currentUser={user}
-                                isHost={isHost}
-                                onKickUser={handleKickUser}
-                                onPromote={handlePromote}
-                                onDemote={handleDemote}
-                                onTransferHost={handleTransferHost}
-                                room={room}
-                            />
-                            <ViewerInfo members={viewers} />
-                        </div>
-                        <div className="min-h-0">
-                           <Chat 
-                                roomId={roomId} 
-                                user={user} 
-                                isHost={isHost}
-                                isSeated={isSeated}
-                                isMuted={isMuted}
-                                onToggleMute={handleToggleMute}
-                            />
-                        </div>
+    <div className="flex flex-col h-screen w-full bg-background items-center">
+        <RoomHeader 
+            onSearchClick={() => setIsSearchOpen(true)} 
+            roomId={roomId}
+            onLeaveRoom={handleLeaveRoom}
+            onSwitchToVideo={handleSwitchToVideo}
+            onSwitchToPlayer={handleSwitchToPlayer}
+            videoMode={videoMode}
+            onInviteClick={handleOpenInviteDialog}
+            canControl={canControl}
+        />
+        <main className="w-full max-w-7xl mx-auto flex-grow flex flex-col gap-4 px-4 pb-4">
+            {videoMode ? (
+               <div className="flex-grow rounded-lg overflow-hidden">
+                 <VideoConference />
+               </div>
+            ) : (
+                <div className="grid lg:grid-cols-3 gap-4 h-full min-h-0">
+                    <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
+                        <Player 
+                            videoUrl={videoUrl} 
+                            onSetVideo={onSetVideo} 
+                            canControl={canControl} 
+                            onSearchClick={() => setIsSearchOpen(true)}
+                            playerState={playerState}
+                            onPlayerStateChange={handlePlayerStateChange}
+                            onVideoEnded={handleVideoEnded}
+                        />
+                         <Seats 
+                            seatedMembers={seatedMembers}
+                            moderators={moderators}
+                            onTakeSeat={handleTakeSeat}
+                            onLeaveSeat={handleLeaveSeat}
+                            currentUser={user}
+                            isHost={isHost}
+                            onKickUser={handleKickUser}
+                            onPromote={handlePromote}
+                            onDemote={handleDemote}
+                            onTransferHost={handleTransferHost}
+                            room={room}
+                        />
+                        <ViewerInfo members={viewers} />
                     </div>
-                )}
-
-            </main>
-             <div className="hidden">
-                <AudioConference />
-            </div>
-
-        <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle>دعوة أصدقاء</DialogTitle>
-                    <DialogDescription>
-                        أرسل دعوات لأصدقائك للانضمام إليك في غرفة المشاهدة.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-3 max-h-80 overflow-y-auto mt-4">
-                    {friends.length > 0 ? friends.map((friend) => (
-                        <div key={friend.name} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30">
-                            <div className="flex items-center gap-3">
-                                <Avatar className="h-10 w-10">
-                                    <AvatarImage src={getAvatar(friend)?.imageUrl} alt={friend.name} />
-                                    <AvatarFallback>{friend.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                                <span className="font-semibold">{friend.name}</span>
-                            </div>
-                            <Button 
-                                size="sm" 
-                                onClick={() => handleSendInvitation(friend.name)} 
-                                disabled={invitedFriends.has(friend.name)}
-                            >
-                                {invitedFriends.has(friend.name) ? "تمت الدعوة" : "دعوة"}
-                                {!invitedFriends.has(friend.name) && <Send className="ms-2 h-4 w-4"/>}
-                            </Button>
-                        </div>
-                    )) : (
-                        <p className="text-center text-muted-foreground py-4">ليس لديك أصدقاء لدعوتهم بعد.</p>
-                    )}
+                    <div className="min-h-0">
+                       <Chat 
+                            roomId={roomId} 
+                            user={user} 
+                            isHost={isHost}
+                            isSeated={isSeated}
+                            isMuted={isMuted}
+                            onToggleMute={handleToggleMute}
+                        />
+                    </div>
                 </div>
-            </DialogContent>
-        </Dialog>
+            )}
+
+        </main>
+         <div className="hidden">
+            <AudioConference />
+        </div>
+
+    <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+        <DialogContent className="max-w-md">
+            <DialogHeader>
+                <DialogTitle>دعوة أصدقاء</DialogTitle>
+                <DialogDescription>
+                    أرسل دعوات لأصدقائك للانضمام إليك في غرفة المشاهدة.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 max-h-80 overflow-y-auto mt-4">
+                {friends.length > 0 ? friends.map((friend) => (
+                    <div key={friend.name} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30">
+                        <div className="flex items-center gap-3">
+                            <Avatar className="h-10 w-10">
+                                <AvatarImage src={getAvatar(friend)?.imageUrl} alt={friend.name} />
+                                <AvatarFallback>{friend.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <span className="font-semibold">{friend.name}</span>
+                        </div>
+                        <Button 
+                            size="sm" 
+                            onClick={() => handleSendInvitation(friend.name)} 
+                            disabled={invitedFriends.has(friend.name)}
+                        >
+                            {invitedFriends.has(friend.name) ? "تمت الدعوة" : "دعوة"}
+                            {!invitedFriends.has(friend.name) && <Send className="ms-2 h-4 w-4"/>}
+                        </Button>
+                    </div>
+                )) : (
+                    <p className="text-center text-muted-foreground py-4">ليس لديك أصدقاء لدعوتهم بعد.</p>
+                )}
+            </div>
+        </DialogContent>
+    </Dialog>
 
 
-        <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
-            <DialogContent className="max-w-none w-screen h-screen m-0 p-0 !rounded-none flex flex-col bg-background">
-                <DialogHeader className="sr-only">
-                  <DialogTitle>بحث يوتيوب</DialogTitle>
-                  <DialogDescription>
+    <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+        <DialogContent className="max-w-none w-screen h-screen m-0 p-0 !rounded-none flex flex-col bg-background">
+            <DialogHeader className="p-4 border-b border-border sticky top-0 bg-background z-10 flex flex-row items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <DialogTitle className="sr-only">بحث يوتيوب</DialogTitle>
+                    <DialogDescription className="sr-only">
                     ابحث عن مقاطع فيديو من يوتيوب لتشغيلها في الغرفة.
-                  </DialogDescription>
-                </DialogHeader>
-                <header className="flex items-center gap-4 p-4 border-b border-border sticky top-0 bg-background z-10">
+                    </DialogDescription>
                     <form onSubmit={handleSearchSubmit} className="flex-grow flex items-center gap-2">
                         <Input
                             type="text"
@@ -517,77 +530,108 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                             {isSearching ? <Loader2 className="h-6 w-6 animate-spin" /> : <Search className="h-6 w-6" />}
                         </Button>
                     </form>
-                    <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => setIsSearchOpen(false)}>
-                        <X className="h-6 w-6" />
-                    </Button>
-                </header>
-                <div className="flex-grow overflow-y-auto">
-                    {isSearching && (
-                        <div className="flex items-center justify-center h-full">
-                            <Loader2 className="h-12 w-12 animate-spin text-accent" />
-                        </div>
-                    )}
-                    {searchError && (
-                        <div className="flex items-center justify-center h-full p-4">
-                            <p className="text-center text-destructive text-lg">{searchError}</p>
-                        </div>
-                    )}
-                    {!isSearching && !searchError && searchResults.length === 0 && searchHistory.length > 0 && (
-                        <div className="p-6">
-                            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-muted-foreground"><History/> سجل البحث</h2>
-                            <div className="flex flex-col gap-3">
-                                {searchHistory.map((term, index) => (
-                                    <button
-                                        key={index}
-                                        onClick={() => handleHistoryClick(term)}
-                                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary text-start w-full"
-                                    >
-                                        <History className="text-muted-foreground" />
-                                        <span className="text-lg text-foreground">{term}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                     {!isSearching && !searchError && searchResults.length === 0 && searchHistory.length === 0 && (
-                         <div className="p-6 text-center text-muted-foreground">
-                            <p>لا يوجد سجل بحث حتى الآن. ابدأ البحث للعثور على مقاطع الفيديو المفضلة لديك.</p>
-                        </div>
-                    )}
-                    {searchResults.length > 0 && (
-                        <div className="max-w-4xl mx-auto p-4">
-                            <div className="flex flex-col gap-4">
-                                {searchResults.map((video) => (
-                                    <div
-                                    key={video.id.videoId}
-                                    className="flex items-center gap-4 p-3 rounded-lg bg-card/50"
-                                    >
-                                    <Image
-                                        src={video.snippet.thumbnails.default.url}
-                                        alt={video.snippet.title}
-                                        width={120}
-                                        height={68}
-                                        className="rounded-lg aspect-video object-cover"
-                                    />
-                                    <div className="flex-grow">
-                                        <h3 className="text-md font-semibold text-foreground line-clamp-2">{video.snippet.title}</h3>
-                                        <p className="text-sm text-muted-foreground line-clamp-1">{video.snippet.description}</p> 
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                         <Button size="sm" variant="secondary" onClick={() => onSetVideo(`https://www.youtube.com/watch?v=${video.id.videoId}`)}>
-                                            <Play className="me-2 h-4 w-4" />
-                                            تشغيل الآن
-                                        </Button>
-                                    </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
+                <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => setIsSearchOpen(false)}>
+                    <X className="h-6 w-6" />
+                </Button>
+            </DialogHeader>
+            <div className="flex-grow overflow-y-auto">
+                {isSearching && (
+                    <div className="flex items-center justify-center h-full">
+                        <Loader2 className="h-12 w-12 animate-spin text-accent" />
+                    </div>
+                )}
+                {searchError && (
+                    <div className="flex items-center justify-center h-full p-4">
+                        <p className="text-center text-destructive text-lg">{searchError}</p>
+                    </div>
+                )}
+                {!isSearching && !searchError && searchResults.length === 0 && searchHistory.length > 0 && (
+                    <div className="p-6">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-muted-foreground"><History/> سجل البحث</h2>
+                        <div className="flex flex-col gap-3">
+                            {searchHistory.map((term, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => handleHistoryClick(term)}
+                                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary text-start w-full"
+                                >
+                                    <History className="text-muted-foreground" />
+                                    <span className="text-lg text-foreground">{term}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                 {!isSearching && !searchError && searchResults.length === 0 && searchHistory.length === 0 && (
+                     <div className="p-6 text-center text-muted-foreground">
+                        <p>لا يوجد سجل بحث حتى الآن. ابدأ البحث للعثور على مقاطع الفيديو المفضلة لديك.</p>
+                    </div>
+                )}
+                {searchResults.length > 0 && (
+                    <div className="max-w-4xl mx-auto p-4">
+                        <div className="flex flex-col gap-4">
+                            {searchResults.map((video) => (
+                                <div
+                                key={video.id.videoId}
+                                className="flex items-center gap-4 p-3 rounded-lg bg-card/50"
+                                >
+                                <Image
+                                    src={video.snippet.thumbnails.default.url}
+                                    alt={video.snippet.title}
+                                    width={120}
+                                    height={68}
+                                    className="rounded-lg aspect-video object-cover"
+                                />
+                                <div className="flex-grow">
+                                    <h3 className="text-md font-semibold text-foreground line-clamp-2">{video.snippet.title}</h3>
+                                    <p className="text-sm text-muted-foreground line-clamp-1">{video.snippet.description}</p> 
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                     <Button size="sm" variant="secondary" onClick={() => setPreviewVideo(video)}>
+                                        <Play className="me-2 h-4 w-4" />
+                                        معاينة وتشغيل
+                                    </Button>
+                                </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </DialogContent>
+    </Dialog>
+
+    {previewVideo && (
+        <Dialog open={!!previewVideo} onOpenChange={(isOpen) => !isOpen && setPreviewVideo(null)}>
+            <DialogContent className="max-w-4xl w-full">
+                <DialogHeader>
+                    <DialogTitle>{previewVideo.snippet.title}</DialogTitle>
+                    <DialogDescription className="line-clamp-2">{previewVideo.snippet.description}</DialogDescription>
+                </DialogHeader>
+                <div className="aspect-video w-full rounded-lg overflow-hidden shadow-md bg-black relative">
+                     <YouTube
+                        videoId={previewVideo.id.videoId}
+                        opts={{
+                            height: '100%',
+                            width: '100%',
+                            playerVars: {
+                              autoplay: 1,
+                              controls: 1,
+                            },
+                        }}
+                        onReady={(event) => { previewPlayerRef.current = event.target; }}
+                        className="w-full h-full"
+                    />
+                </div>
+                <Button onClick={handleSetVideoFromPreview} size="lg" className="w-full">
+                    <Clapperboard className="me-2" />
+                    عرض للجميع
+                </Button>
             </DialogContent>
         </Dialog>
-    </div>
+    )}
+</div>
   )
 }
 
@@ -620,7 +664,8 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         const tokenFetchPromise = (async () => {
             const res = await fetch(`/api/livekit?room=${roomId}&username=${user.name}`);
             if (!res.ok) {
-                throw new Error(`Failed to fetch token: ${res.statusText}`);
+                const errorText = await res.text();
+                throw new Error(`Failed to fetch token: ${res.statusText} - ${errorText}`);
             }
             const data = await res.json();
             if (isMounted) {
@@ -643,6 +688,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
     return () => {
         isMounted = false;
+        goOffline(database);
         if (user) {
             const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
             get(memberRef).then(snapshot => {
@@ -676,7 +722,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL!}
       user={user}
-      isSeated={true} // Dummy value, real value is managed inside RoomLayout
+      isSeated={true} // This will be managed within RoomLayout based on seatedMembers state
       videoMode={videoMode}
     >
       <RoomLayout roomId={roomId} videoMode={videoMode} />
