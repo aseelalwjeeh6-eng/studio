@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import YouTube, { YouTubePlayer } from 'react-youtube';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Play, Search, Film, Pause } from 'lucide-react';
+import { Play, Search, Film, Pause, Forward, Rewind } from 'lucide-react';
 import { PlayerState } from './RoomClient';
+import { Slider } from '../ui/slider';
+import { cn } from '@/lib/utils';
 
 interface PlayerProps {
   videoUrl: string;
@@ -28,38 +30,84 @@ function getYouTubeVideoId(url: string): string | null {
       if (videoId) return videoId;
     }
   } catch (e) {
-    // Not a valid URL, could be just an ID or an external site link
+    // Not a valid URL
   }
-  
-  // Handle cases where only the video ID is passed
   if (url.match(/^[a-zA-Z0-9_-]{11}$/)) {
     return url;
   }
-
   return null;
 }
 
 const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, onPlayerStateChange, onVideoEnded }: PlayerProps) => {
-  const isYoutubeLink = useMemo(() => !!getYouTubeVideoId(videoUrl), [videoUrl]);
-  const videoId = isYoutubeLink ? getYouTubeVideoId(videoUrl) : null;
+  const videoId = useMemo(() => getYouTubeVideoId(videoUrl), [videoUrl]);
   const [localVideoUrl, setLocalVideoUrl] = useState('');
   const playerRef = useRef<YouTubePlayer | null>(null);
   const isPlayerReady = useRef(false);
-
-  // This ref helps prevent the local component from emitting state changes
-  // that it just received from firebase, avoiding infinite loops.
   const isSeekingRef = useRef(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync player with host's state for YouTube videos
-  useEffect(() => {
-    if (!isYoutubeLink) return; // Only sync for YouTube videos
+  const [showControls, setShowControls] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
 
+  const handleStateChange = useCallback((isPlaying: boolean, seekTime: number) => {
+    if (canControl) {
+      onPlayerStateChange({ isPlaying, seekTime });
+    }
+  }, [canControl, onPlayerStateChange]);
+
+  const togglePlay = useCallback(() => {
     const player = playerRef.current;
-    if (!player || !playerState || !isPlayerReady.current) return;
+    if (!player || !canControl) return;
 
-    if (canControl) return; // Host controls their own player
+    const playerStatus = player.getPlayerState();
+    if (playerStatus === 1) { // Playing
+      player.pauseVideo();
+    } else { // Paused, Buffering, Cued
+      player.playVideo();
+    }
+  }, [canControl]);
 
-    // Sync play/pause state
+  const seek = useCallback((amount: number) => {
+    const player = playerRef.current;
+    if (!player || !canControl) return;
+    const currentTime = player.getCurrentTime();
+    const newTime = Math.max(0, currentTime + amount);
+    player.seekTo(newTime, true);
+    handleStateChange(player.getPlayerState() === 1, newTime);
+  }, [canControl, handleStateChange]);
+
+  const handleSliderChange = (value: number[]) => {
+    if (!playerRef.current || !canControl) return;
+    const newTime = value[0];
+    setProgress(newTime);
+    playerRef.current.seekTo(newTime, true);
+    handleStateChange(playerRef.current.getPlayerState() === 1, newTime);
+  };
+  
+  const hideControlsAfterDelay = () => {
+    if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+    }
+    controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false);
+    }, 3000);
+  };
+
+  const toggleControls = () => {
+      if (!canControl || !videoId) return;
+      setShowControls(prev => !prev);
+      if (!showControls) {
+          hideControlsAfterDelay();
+      }
+  };
+
+  // Effect for syncing remote state to local player (for viewers)
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player || !playerState || !isPlayerReady.current || canControl) return;
+
     const playerStatus = player.getPlayerState();
     if (playerState.isPlaying && playerStatus !== 1) {
       player.playVideo();
@@ -67,52 +115,60 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
       player.pauseVideo();
     }
 
-    // Sync seek time
     const currentTime = player.getCurrentTime();
-    const hostTime = playerState.seekTime;
-    if (Math.abs(currentTime - hostTime) > 2) {
-        isSeekingRef.current = true;
-        player.seekTo(hostTime, true);
-        setTimeout(() => { isSeekingRef.current = false; }, 1000);
+    const hostTime = playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
+    if (Math.abs(currentTime - hostTime) > 3) {
+      isSeekingRef.current = true;
+      player.seekTo(hostTime, true);
+      setTimeout(() => { isSeekingRef.current = false; }, 1000);
+    }
+  }, [playerState, canControl]);
+
+  // Effect for host to update progress bar
+  useEffect(() => {
+    if (canControl && playerRef.current && playerState?.isPlaying) {
+      intervalRef.current = setInterval(() => {
+        const currentTime = playerRef.current?.getCurrentTime() || 0;
+        setProgress(currentTime);
+        hideControlsAfterDelay(); // Reset timeout on activity
+      }, 1000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     }
 
-  }, [playerState, canControl, isYoutubeLink]);
-
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [canControl, playerState?.isPlaying]);
 
   const onReady = (event: { target: YouTubePlayer }) => {
     playerRef.current = event.target;
     isPlayerReady.current = true;
-    if (playerState && playerRef.current) {
-        // For viewers joining late, seek to the current time, adjusted for time passed since last update
-        const initialSeekTime = playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
-        playerRef.current.seekTo(initialSeekTime, true);
-        if (playerState.isPlaying) {
-            playerRef.current.playVideo();
-        } else {
-            playerRef.current.pauseVideo();
-        }
+    setDuration(event.target.getDuration());
+
+    if (playerState) {
+      const initialSeekTime = canControl ? playerState.seekTime : playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
+      event.target.seekTo(initialSeekTime, true);
+      if (playerState.isPlaying) {
+        event.target.playVideo();
+      }
     }
   };
-  
+
   const onStateChange = (event: { data: number }) => {
-      // Only the host should emit state changes
-      if (!canControl || !playerRef.current || isSeekingRef.current) return;
-      
-      const currentTime = playerRef.current.getCurrentTime();
+    if (!canControl || !playerRef.current || isSeekingRef.current) return;
+    const currentTime = playerRef.current.getCurrentTime();
 
-      if (event.data === 0) { // Ended
-        onVideoEnded();
-        return;
-      }
-
-      switch (event.data) {
-          case 1: // Playing
-              onPlayerStateChange({ isPlaying: true, seekTime: currentTime });
-              break;
-          case 2: // Paused
-              onPlayerStateChange({ isPlaying: false, seekTime: currentTime });
-              break;
-      }
+    if (event.data === 0) { // Ended
+      onVideoEnded();
+    } else if (event.data === 1) { // Playing
+      handleStateChange(true, currentTime);
+    } else if (event.data === 2) { // Paused
+      handleStateChange(false, currentTime);
+      setProgress(currentTime); // Update progress on pause
+    }
   };
 
   const handleUrlSubmit = (e: React.FormEvent) => {
@@ -121,58 +177,53 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
       onSetVideo(localVideoUrl.trim());
     }
   };
-
-  const togglePlay = () => {
-    if (!canControl || !playerRef.current) return;
-    const playerStatus = playerRef.current.getPlayerState();
-    if (playerStatus === 1) { // is playing
-      playerRef.current.pauseVideo();
-    } else {
-      playerRef.current.playVideo();
-    }
+  
+  const formatTime = (seconds: number) => {
+    const date = new Date(0);
+    date.setSeconds(seconds || 0);
+    return date.toISOString().substr(11, 8);
   };
 
 
   const renderContent = () => {
-    if (isYoutubeLink && videoId) {
+    if (videoId) {
       return (
         <YouTube
-            key={videoId}
-            videoId={videoId}
-            opts={{
-                height: '100%',
-                width: '100%',
-                playerVars: {
-                  autoplay: canControl ? 1 : 0, // Autoplay for host, viewers sync to host state
-                  controls: 0, 
-                  rel: 0,
-                  showinfo: 0,
-                  modestbranding: 1,
-                  iv_load_policy: 3,
-                  disablekb: 1, 
-                },
-            }}
-            onReady={onReady}
-            onStateChange={onStateChange}
-            className="w-full h-full"
+          key={videoId}
+          videoId={videoId}
+          opts={{
+            height: '100%',
+            width: '100%',
+            playerVars: {
+              autoplay: 1,
+              controls: 0,
+              rel: 0,
+              showinfo: 0,
+              modestbranding: 1,
+              iv_load_policy: 3,
+              disablekb: 1,
+            },
+          }}
+          onReady={onReady}
+          onStateChange={onStateChange}
+          className="w-full h-full"
         />
       );
     }
 
-    // For non-YouTube embeds
-    if (!isYoutubeLink && videoUrl) {
-      return (
-        <iframe
-          src={videoUrl}
-          title="Shared Content"
-          className="w-full h-full border-0 pointer-events-none" // pointer-events-none to prevent clicks
-          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-          allowFullScreen
-        ></iframe>
-      );
-    }
+    // For non-YouTube embeds or empty state
+    if (videoUrl && !videoId) {
+        return (
+          <iframe
+            src={videoUrl}
+            title="Shared Content"
+            className="w-full h-full border-0"
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen
+          ></iframe>
+        );
+      }
 
-    // Empty state
     return (
       <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-4 text-center">
         {canControl ? (
@@ -214,13 +265,43 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   }
 
   const renderCustomControls = () => {
-    if (!canControl || !videoUrl || !isYoutubeLink) return null;
+    if (!canControl || !videoId) return null;
 
     return (
-      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
-        <Button onClick={togglePlay} size="icon" className="rounded-full bg-black/50 hover:bg-black/80 text-white">
-          {playerState?.isPlaying ? <Pause /> : <Play />}
-        </Button>
+      <div 
+        className={cn(
+            "absolute inset-0 z-20 flex flex-col justify-between p-4 bg-black/30 transition-opacity duration-300",
+            showControls ? "opacity-100" : "opacity-0"
+        )}
+        onMouseMove={hideControlsAfterDelay} // Keep controls visible while mouse is moving
+      >
+        {/* Top Spacer */}
+        <div></div>
+
+        {/* Center Controls */}
+        <div className="flex items-center justify-center gap-8">
+            <Button onClick={() => seek(-10)} size="icon" variant="ghost" className="text-white hover:bg-white/20 hover:text-white rounded-full w-16 h-16">
+                <Rewind className="w-8 h-8" />
+            </Button>
+            <Button onClick={togglePlay} size="icon" variant="ghost" className="text-white hover:bg-white/20 hover:text-white rounded-full w-20 h-20">
+                {playerState?.isPlaying ? <Pause className="w-12 h-12" /> : <Play className="w-12 h-12" />}
+            </Button>
+             <Button onClick={() => seek(10)} size="icon" variant="ghost" className="text-white hover:bg-white/20 hover:text-white rounded-full w-16 h-16">
+                <Forward className="w-8 h-8" />
+            </Button>
+        </div>
+
+        {/* Bottom Controls */}
+        <div className="flex items-center gap-4 text-white font-mono text-sm">
+           <span>{formatTime(progress)}</span>
+           <Slider
+                value={[progress]}
+                max={duration}
+                step={1}
+                onValueChange={handleSliderChange}
+            />
+           <span>{formatTime(duration)}</span>
+        </div>
       </div>
     );
   };
@@ -228,11 +309,10 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   return (
     <div className="aspect-video w-full rounded-lg overflow-hidden shadow-md bg-black relative">
       {renderContent()}
-      {/* This overlay prevents ANY clicks on the video player itself, for everyone. */}
-      {videoUrl && (
-        <div className="absolute inset-0 w-full h-full bg-transparent z-10" />
-      )}
-      {/* Custom controls are on a higher z-index, so they are clickable by the host. */}
+      <div 
+        className="absolute inset-0 w-full h-full bg-transparent z-10"
+        onClick={toggleControls}
+      />
       {renderCustomControls()}
     </div>
   );
