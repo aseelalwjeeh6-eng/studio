@@ -9,7 +9,7 @@ import Player from './Player';
 import Chat from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
-import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, ListPlus } from 'lucide-react';
+import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AudioConference, useLiveKitRoom, useLocalParticipant, useParticipants } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
@@ -23,7 +23,6 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import VideoConference from './VideoConference';
 import { AppUser, getFriends, sendRoomInvitation } from '@/lib/firebase-service';
-import Playlist, { PlaylistItem } from './Playlist';
 
 
 export type Member = { 
@@ -119,7 +118,6 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const [hostName, setHostName] = useState('');
   const [moderators, setModerators] = useState<string[]>([]);
-  const [playlist, setPlaylist] = useState<PlaylistItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setResults] = useState<YouTubeVideo[]>([]);
@@ -204,9 +202,6 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
         const moderatorsRef = ref(database, `rooms/${roomId}/moderators`);
         listeners.push(onValue(moderatorsRef, (snapshot) => setModerators(snapshot.val() || [])));
-
-        const playlistRef = ref(database, `rooms/${roomId}/playlist`);
-        listeners.push(onValue(playlistRef, (snapshot) => setPlaylist(snapshot.val() ? Object.values(snapshot.val()) : [])));
     };
 
     setupListeners();
@@ -307,27 +302,6 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     e.preventDefault();
     performSearch(searchQuery);
   }
-  
-  const handleAddToPlaylist = (video: YouTubeVideo) => {
-    if (!canControl) return;
-    const newPlaylistItem: PlaylistItem = {
-      id: video.id.videoId,
-      videoId: video.id.videoId,
-      title: video.snippet.title,
-      thumbnail: video.snippet.thumbnails.medium.url,
-    };
-
-    const playlistRef = ref(database, `rooms/${roomId}/playlist`);
-    const newPlaylist = [...playlist, newPlaylistItem];
-    set(playlistRef, newPlaylist);
-    
-    if (!videoUrl) {
-      onSetVideo(`https://www.youtube.com/watch?v=${video.id.videoId}`);
-    }
-
-    toast({ title: "أضيف إلى الطابور", description: video.snippet.title });
-  };
-
 
   const handleHistoryClick = (query: string) => {
       setSearchQuery(query);
@@ -354,38 +328,8 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
   const handleVideoEnded = () => {
     if (!canControl) return;
-  
-    const currentVideoId = videoUrl.includes('v=') ? new URL(videoUrl).searchParams.get('v') : null;
-  
-    const currentVideoIndex = playlist.findIndex(item => item.videoId === currentVideoId);
-    const isLastVideo = currentVideoIndex === playlist.length - 1;
-  
-    const playlistRef = ref(database, `rooms/${roomId}/playlist`);
-    const newPlaylist = playlist.filter(item => item.videoId !== currentVideoId);
-    set(playlistRef, newPlaylist.length > 0 ? newPlaylist : null);
-  
-    if (newPlaylist.length > 0 && !isLastVideo) {
-      const nextVideo = newPlaylist[currentVideoIndex];
-      if (nextVideo) {
-        onSetVideo(`https://www.youtube.com/watch?v=${nextVideo.videoId}`);
-      }
-    } else {
-      onSetVideo('');
-    }
+    onSetVideo('');
   };
-  
-  const handlePlayPlaylistItem = (videoId: string) => {
-    if (!canControl) return;
-    onSetVideo(`https://www.youtube.com/watch?v=${videoId}`);
-  };
-
-  const handleRemovePlaylistItem = (videoId: string) => {
-      if (!canControl) return;
-      const playlistRef = ref(database, `rooms/${roomId}/playlist`);
-      const newPlaylist = playlist.filter(item => item.videoId !== videoId);
-      set(playlistRef, newPlaylist);
-  };
-  
 
   const handleKickUser = (userNameToKick: string) => {
     if (!canControl || !userNameToKick) return;
@@ -485,28 +429,19 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                                 onPlayerStateChange={handlePlayerStateChange}
                                 onVideoEnded={handleVideoEnded}
                             />
-                            <div className="grid grid-cols-2 gap-4">
-                                <Seats 
-                                    seatedMembers={seatedMembers}
-                                    moderators={moderators}
-                                    onTakeSeat={handleTakeSeat}
-                                    onLeaveSeat={handleLeaveSeat}
-                                    currentUser={user}
-                                    isHost={isHost}
-                                    onKickUser={handleKickUser}
-                                    onPromote={handlePromote}
-                                    onDemote={handleDemote}
-                                    onTransferHost={handleTransferHost}
-                                    room={room}
-                                />
-                                <Playlist
-                                    items={playlist}
-                                    canControl={canControl}
-                                    onPlay={handlePlayPlaylistItem}
-                                    onRemove={handleRemovePlaylistItem}
-                                    currentVideoUrl={videoUrl}
-                                />
-                            </div>
+                             <Seats 
+                                seatedMembers={seatedMembers}
+                                moderators={moderators}
+                                onTakeSeat={handleTakeSeat}
+                                onLeaveSeat={handleLeaveSeat}
+                                currentUser={user}
+                                isHost={isHost}
+                                onKickUser={handleKickUser}
+                                onPromote={handlePromote}
+                                onDemote={handleDemote}
+                                onTransferHost={handleTransferHost}
+                                room={room}
+                            />
                             <ViewerInfo members={viewers} />
                         </div>
                         <div className="min-h-0">
@@ -639,10 +574,6 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                                             <Play className="me-2 h-4 w-4" />
                                             تشغيل الآن
                                         </Button>
-                                        <Button size="sm" onClick={() => handleAddToPlaylist(video)}>
-                                            <ListPlus className="me-2 h-4 w-4" />
-                                            إضافة للطابور
-                                        </Button>
                                     </div>
                                     </div>
                                 ))}
@@ -672,45 +603,36 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
     let isMounted = true;
 
-    // We start fetching the token immediately
-    fetch(`/api/livekit?room=${roomId}&username=${user.name}`)
-      .then(res => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch token: ${res.statusText}`);
-        }
-        return res.json();
-      })
-      .then(data => {
-        if (isMounted) {
-          setToken(data.token);
-        }
-      })
-      .catch(error => {
-        console.error("Error fetching LiveKit token:", error);
-        if (isMounted) {
-          toast({ title: 'خطأ في الاتصال', description: 'فشل جلب مفتاح الاتصال بالغرفة.', variant: 'destructive' });
-          router.push('/lobby');
-        }
-      });
-
-    // We also set up the database connection concurrently
-    const setupDatabase = async () => {
+    const setupDatabaseAndFetchToken = async () => {
         try {
             await goOnline(database);
             const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
             const memberData = { name: user.name, avatarId: user.avatarId || 'avatar1', joinedAt: serverTimestamp() };
             await set(userRef, memberData);
             onDisconnect(userRef).remove();
+
+            // Fetch token after setting up database presence
+            const res = await fetch(`/api/livekit?room=${roomId}&username=${user.name}`);
+            if (!res.ok) {
+                throw new Error(`Failed to fetch token: ${res.statusText}`);
+            }
+            const data = await res.json();
+            if (isMounted) {
+                setToken(data.token);
+            }
         } catch (error) {
-            console.error("Error setting up Firebase presence:", error);
+            console.error("Error setting up room:", error);
+            if (isMounted) {
+                toast({ title: 'خطأ في الاتصال', description: 'فشل في تهيئة الغرفة.', variant: 'destructive' });
+                router.push('/lobby');
+            }
         }
     };
 
-    setupDatabase();
+    setupDatabaseAndFetchToken();
 
     return () => {
         isMounted = false;
-        // The onDisconnect handles removal, but we can try to remove manually if the user navigates away
         if (user) {
             const memberRef = ref(database, `rooms/${roomId}/members/${user.name}`);
             get(memberRef).then(snapshot => {
