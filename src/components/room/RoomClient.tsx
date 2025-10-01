@@ -327,14 +327,13 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const onSetVideo = useCallback((videoIdentifier: string, startTime = 0) => {
     if (canControl) {
       let finalUrl = videoIdentifier;
-      // Check if it's a valid youtube URL, otherwise treat it as a video ID or direct link
-      if (!finalUrl.startsWith('http')) {
+      if (videoIdentifier && !videoIdentifier.startsWith('http')) {
         finalUrl = `https://www.youtube.com/watch?v=${videoIdentifier}`;
       }
 
       set(ref(database, `rooms/${roomId}/videoUrl`), finalUrl);
       set(ref(database, `rooms/${roomId}/playerState`), { 
-        isPlaying: true, 
+        isPlaying: !!finalUrl, 
         seekTime: startTime, 
         timestamp: serverTimestamp() 
       });
@@ -566,10 +565,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                             onTransferHost={handleTransferHost}
                             room={room}
                         />
-                    </div>
-                    <div className="lg:col-span-1 min-h-0 flex flex-col gap-4">
-                        <div className="min-h-0 lg:grid lg:grid-rows-2 gap-4 flex-grow">
-                           <Chat 
+                        <ViewerInfo members={viewers} />
+                        <div className='min-h-[300px] lg:min-h-0 lg:flex-grow'>
+                            <Chat 
                                 roomId={roomId} 
                                 user={user} 
                                 isHost={isHost}
@@ -577,15 +575,16 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                                 isMuted={isMuted}
                                 onToggleMute={handleToggleMute}
                             />
-                             <Playlist 
-                                items={playlist}
-                                canControl={canControl}
-                                onPlay={handlePlayFromPlaylist}
-                                onRemove={handleRemoveFromPlaylist}
-                                currentVideoUrl={videoUrl}
-                            />
                         </div>
-                        <ViewerInfo members={viewers} />
+                    </div>
+                    <div className="lg:col-span-1 min-h-0 flex flex-col gap-4">
+                         <Playlist 
+                            items={playlist}
+                            canControl={canControl}
+                            onPlay={handlePlayFromPlaylist}
+                            onRemove={handleRemoveFromPlaylist}
+                            currentVideoUrl={videoUrl}
+                        />
                     </div>
                 </div>
             )}
