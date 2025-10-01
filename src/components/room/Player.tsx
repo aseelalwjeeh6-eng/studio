@@ -23,15 +23,23 @@ function getYouTubeVideoId(url: string): string | null {
   if (!url) return null;
   try {
     const urlObj = new URL(url);
-    if (urlObj.hostname === 'youtu.be') {
-      return urlObj.pathname.slice(1);
-    } else if (urlObj.hostname === 'www.youtube.com' || urlObj.hostname === 'youtube.com') {
-      const videoId = urlObj.searchParams.get('v');
-      if (videoId) return videoId;
+    const hostname = urlObj.hostname;
+    if (hostname === 'youtu.be') {
+      return urlObj.pathname.slice(1).split('?')[0];
+    }
+    if (hostname === 'www.youtube.com' || hostname === 'youtube.com') {
+      if (urlObj.pathname === '/watch') {
+        const videoId = urlObj.searchParams.get('v');
+        if (videoId) return videoId;
+      }
+      if (urlObj.pathname.startsWith('/embed/')) {
+        return urlObj.pathname.split('/embed/')[1].split('?')[0];
+      }
     }
   } catch (e) {
-    // Not a valid URL
+    // Not a valid URL, could be a video ID
   }
+  // Fallback for just ID
   if (url.match(/^[a-zA-Z0-9_-]{11}$/)) {
     return url;
   }
@@ -96,7 +104,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   };
 
   const toggleControls = () => {
-      if (!canControl || !videoId) return;
+      if (!canControl || !videoUrl) return;
       setShowControls(true);
       hideControlsAfterDelay();
   };
@@ -203,10 +211,11 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   };
   
   const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || seconds < 0) return '00:00:00';
+    if (isNaN(seconds) || seconds < 0) return '00:00';
     const date = new Date(0);
     date.setSeconds(seconds);
-    return date.toISOString().substr(11, 8);
+    const hasHours = date.getUTCHours() > 0;
+    return date.toISOString().substr(hasHours ? 11 : 14, hasHours ? 8 : 5);
   };
 
 
@@ -236,15 +245,15 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
       );
     }
 
-    // For non-YouTube embeds or empty state
-    if (videoUrl && !videoId) {
+    if (videoUrl) {
         return (
           <iframe
             src={videoUrl}
             title="Shared Content"
-            className="w-full h-full border-0 pointer-events-none"
+            className="w-full h-full border-0"
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowFullScreen
+            sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-presentation"
           ></iframe>
         );
       }
@@ -346,3 +355,5 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
 };
 
 export default Player;
+
+    
