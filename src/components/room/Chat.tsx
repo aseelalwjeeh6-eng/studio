@@ -44,6 +44,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!roomId) return;
     const chatRef = ref(database, `rooms/${roomId}/chat`);
     const listener = onValue(chatRef, (snapshot) => {
       const data = snapshot.val();

@@ -168,7 +168,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   
   const isMuted = useMemo(() => {
       const participant = [localParticipant, ...participants].find(p => p.identity === user?.name);
-      return participant ? participant.isMicrophoneMuted : true;
+      return participant ? participant.isMicrophoneEnabled : true;
   }, [localParticipant, participants, user?.name]);
 
 
@@ -246,6 +246,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }, []);
 
   const sendSystemMessage = useCallback((text: string) => {
+    if (!roomId) return;
     const chatRef = ref(database, `rooms/${roomId}/chat`);
     const messageData: Message = {
       sender: 'System',
@@ -594,16 +595,19 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                         room={room}
                     />
                     <ViewerInfo members={viewers} />
+                    <div className="flex-grow flex flex-col min-h-0">
+                        <Chat 
+                            roomId={roomId} 
+                            user={user} 
+                            isHost={isHost}
+                            isSeated={isSeated}
+                            isMuted={isMuted}
+                            onToggleMute={handleToggleMute}
+                        />
+                    </div>
                 </div>
                 <div className="md:col-span-1 flex flex-col min-h-0">
-                    <Chat 
-                        roomId={roomId} 
-                        user={user} 
-                        isHost={isHost}
-                        isSeated={isSeated}
-                        isMuted={isMuted}
-                        onToggleMute={handleToggleMute}
-                    />
+                   {/* This column is now empty, chat moved to the main column */}
                 </div>
                 </>
             )}
@@ -827,6 +831,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const { toast } = useToast();
   
   const sendSystemMessage = useCallback((text: string) => {
+    if (!roomId) return;
     const chatRef = ref(database, `rooms/${roomId}/chat`);
     const messageData: Message = {
       sender: 'System',
