@@ -562,13 +562,14 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             onInviteClick={handleOpenInviteDialog}
             canControl={canControl}
         />
-        <main className="w-full max-w-7xl mx-auto flex-grow flex flex-col md:flex-row gap-4 px-4 pb-4 min-h-0">
+        <main className="w-full max-w-7xl mx-auto flex-grow grid grid-cols-1 md:grid-cols-3 gap-4 px-4 pb-4 min-h-0">
             {videoMode ? (
-               <div className="flex-grow rounded-lg overflow-hidden">
+               <div className="md:col-span-3 rounded-lg overflow-hidden h-full">
                  <VideoConference />
                </div>
             ) : (
-                <div className="flex flex-col gap-4 flex-grow min-h-0">
+                <>
+                <div className="md:col-span-2 flex flex-col gap-4 min-h-0">
                     <Player 
                         videoUrl={videoUrl} 
                         onSetVideo={onSetVideo} 
@@ -588,20 +589,28 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                         isHost={isHost}
                         onKickUser={handleKickUser}
                         onPromote={handlePromote}
-                        onDemote={onDemote}
+                        onDemote={handleDemote}
                         onTransferHost={handleTransferHost}
                         room={room}
                     />
-                    <ViewerInfo members={viewers} />
-                    <Chat 
-                        roomId={roomId} 
-                        user={user} 
-                        isHost={isHost}
-                        isSeated={isSeated}
-                        isMuted={isMuted}
-                        onToggleMute={handleToggleMute}
-                    />
+                    <div className="flex-grow flex flex-col min-h-0">
+                        <ViewerInfo members={viewers} />
+                        <div className="flex-grow overflow-y-auto">
+                            <Chat 
+                                roomId={roomId} 
+                                user={user} 
+                                isHost={isHost}
+                                isSeated={isSeated}
+                                isMuted={isMuted}
+                                onToggleMute={handleToggleMute}
+                            />
+                        </div>
+                    </div>
                 </div>
+                <div className="hidden md:flex md:flex-col gap-4 min-h-0">
+                    {/* Right column content can go here in the future */}
+                </div>
+                </>
             )}
 
         </main>
