@@ -2,9 +2,11 @@
 
 import {
   LiveKitRoom as LiveKitRoomComponent,
+  useRoomContext,
 } from '@livekit/components-react';
 import { Loader2 } from 'lucide-react';
 import type { User } from '@/app/providers';
+import { ConnectionState } from 'livekit-client';
 
 interface LiveKitRoomProps {
   token: string;
@@ -16,6 +18,8 @@ interface LiveKitRoomProps {
 }
 
 const LiveKitRoom = ({ token, serverUrl, user, isSeated, videoMode, children }: LiveKitRoomProps) => {
+  const room = useRoomContext();
+  const isConnected = room.connectionState === ConnectionState.Connected;
   
   if (!token || !serverUrl) {
     return (
@@ -28,8 +32,8 @@ const LiveKitRoom = ({ token, serverUrl, user, isSeated, videoMode, children }: 
 
   return (
     <LiveKitRoomComponent
-      video={videoMode && isSeated}
-      audio={isSeated}
+      video={videoMode && isSeated && isConnected}
+      audio={isSeated && isConnected}
       token={token}
       serverUrl={serverUrl}
       connect={true}
