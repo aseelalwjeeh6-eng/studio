@@ -329,12 +329,14 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       let finalUrl = videoIdentifier;
       // Check if it's a valid URL, otherwise treat it as a video ID
       try {
-        const parsedUrl = new URL(videoIdentifier);
-        if (parsedUrl.hostname === 'youtu.be' || parsedUrl.hostname.includes('youtube.com')) {
-          const videoId = parsedUrl.hostname === 'youtu.be' 
-            ? parsedUrl.pathname.slice(1) 
-            : parsedUrl.searchParams.get('v');
-          if (videoId) finalUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        new URL(videoIdentifier);
+        // It's a full URL
+        if (videoIdentifier.includes('youtube.com') || videoIdentifier.includes('youtu.be')) {
+            const parsedUrl = new URL(videoIdentifier);
+            const videoId = parsedUrl.hostname === 'youtu.be'
+                ? parsedUrl.pathname.slice(1)
+                : parsedUrl.searchParams.get('v');
+            if (videoId) finalUrl = `https://www.youtube.com/watch?v=${videoId}`;
         }
       } catch (_) {
         // Not a valid URL, assume it's a youtube video ID
@@ -377,7 +379,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         title: video.snippet.title,
         thumbnail: video.snippet.thumbnails.default.url,
       };
-      const playlistRef = ref(database, `rooms/${roomId}/playlist/${newItem.id}`);
+      const playlistRef = ref(database, `rooms/${roomId}/playlist/${btoa(newItem.id)}`);
       set(playlistRef, newItem);
       toast({ title: "تمت الإضافة", description: `تمت إضافة "${video.snippet.title}" إلى قائمة التشغيل.` });
   };
@@ -397,10 +399,14 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                 : parsedUrl.searchParams.get('v');
             
             if (videoId) {
-                const results = await searchYoutube({ query: videoId });
-                if (results.items.length > 0) {
-                    title = results.items[0].snippet.title;
-                    thumbnail = results.items[0].snippet.thumbnails.default.url;
+                // Try to fetch title from youtube
+                try {
+                    const response = await fetch(`https://noembed.com/json?url=${encodeURIComponent(url)}`);
+                    const data = await response.json();
+                    if(data.title) title = data.title;
+                    if(data.thumbnail_url) thumbnail = data.thumbnail_url;
+                } catch(e) {
+                    console.warn("Could not fetch oEmbed details for youtube URL", e);
                 }
             }
         }
@@ -419,8 +425,8 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     setUrlInput('');
   };
 
-  const handlePlayFromPlaylist = (item: PlaylistItem) => {
-    onSetVideo(item.videoId);
+  const handlePlayFromPlaylist = (videoId: string) => {
+    onSetVideo(videoId);
   };
 
   const handleRemoveFromPlaylist = (itemId: string) => {
