@@ -204,8 +204,8 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         const membersRef = ref(database, `rooms/${roomId}/members`);
         listeners.push(onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : [])));
         
-        const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
-        listeners.push(onValue(seatedMembersRef, (snapshot) => {
+        const seatedMembersRefDb = ref(database, `rooms/${roomId}/seatedMembers`);
+        listeners.push(onValue(seatedMembersRefDb, (snapshot) => {
             const seatedData = snapshot.val();
             const seatedArray = seatedData ? Object.values(seatedData) : [];
             seatedMembersRef.current = seatedArray as SeatedMember[];
@@ -593,22 +593,17 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                         onTransferHost={handleTransferHost}
                         room={room}
                     />
-                    <div className="flex-grow flex flex-col min-h-0">
-                        <ViewerInfo members={viewers} />
-                        <div className="flex-grow overflow-y-auto">
-                            <Chat 
-                                roomId={roomId} 
-                                user={user} 
-                                isHost={isHost}
-                                isSeated={isSeated}
-                                isMuted={isMuted}
-                                onToggleMute={handleToggleMute}
-                            />
-                        </div>
-                    </div>
+                     <ViewerInfo members={viewers} />
                 </div>
-                <div className="hidden md:flex md:flex-col gap-4 min-h-0">
-                    {/* Right column content can go here in the future */}
+                <div className="md:col-span-1 flex flex-col gap-4 min-h-0">
+                    <Chat 
+                        roomId={roomId} 
+                        user={user} 
+                        isHost={isHost}
+                        isSeated={isSeated}
+                        isMuted={isMuted}
+                        onToggleMute={handleToggleMute}
+                    />
                 </div>
                 </>
             )}
@@ -825,7 +820,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 }
 
 
-const RoomClient = ({ roomId, videoMode = false }: { roomId, videoMode?: boolean }) => {
+const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?: boolean }) => {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUserSession();
   const [token, setToken] = useState('');

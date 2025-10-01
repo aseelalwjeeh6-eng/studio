@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { filterProfanity } from '@/ai/flows/profanity-filter';
 
 
 interface ChatProps {
@@ -85,7 +86,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
   };
 
   return (
-    <div className="w-full">
+    <div className="flex flex-col h-full w-full bg-card rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold flex items-center gap-2"><MessageCircle className="text-accent" /><span>الدردشة</span></h2>
             {isHost && (
@@ -113,7 +114,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
               </AlertDialog>
             )}
         </div>
-        <div className="space-y-4 pb-20">
+        <div className="flex-grow overflow-y-auto pr-2 space-y-4">
         {messages.length > 0 ? messages.map((msg, index) => (
             <div key={index}>
             {msg.isSystemMessage ? (
@@ -134,7 +135,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
         )}
         <div ref={chatEndRef} />
         </div>
-        <form onSubmit={handleSendMessage} className="flex w-full items-center gap-2 sticky bottom-4 bg-background/80 backdrop-blur-lg py-2">
+        <form onSubmit={handleSendMessage} className="flex w-full items-center gap-2 mt-4">
            {isSeated && (
             <Button type="button" size="icon" variant="ghost" onClick={onToggleMute}>
               {isMuted ? <MicOff className="w-5 h-5 text-destructive" /> : <Mic className="w-5 h-5 text-accent" />}
