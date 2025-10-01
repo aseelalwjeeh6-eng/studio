@@ -9,7 +9,7 @@ import Player from './Player';
 import Chat, { Message } from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
-import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard, Plus, ListMusic } from 'lucide-react';
+import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard, Plus, ListMusic, Wallpaper } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AudioConference, useLiveKitRoom, useLocalParticipant, useParticipants } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
@@ -19,12 +19,13 @@ import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '../ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { PlaceHolderImages, ImagePlaceholder } from '@/lib/placeholder-images';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import VideoConference from './VideoConference';
 import { AppUser, getFriends, sendRoomInvitation } from '@/lib/firebase-service';
 import YouTube, { YouTubePlayer } from 'react-youtube';
 import Playlist, { PlaylistItem } from './Playlist';
+import { cn } from '@/lib/utils';
 
 
 export type Member = { 
@@ -57,7 +58,7 @@ interface YouTubeVideo {
   };
 }
 
-const RoomHeader = ({ onSearchClick, onPlaylistClick, roomId, onLeaveRoom, onSwitchToVideo, onSwitchToPlayer, videoMode, onInviteClick, canControl }: { onSearchClick: () => void; onPlaylistClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; onSwitchToPlayer: () => void; videoMode: boolean; onInviteClick: () => void; canControl: boolean; }) => {
+const RoomHeader = ({ onSearchClick, onPlaylistClick, roomId, onLeaveRoom, onSwitchToVideo, onSwitchToPlayer, videoMode, onInviteClick, onBackgroundClick, canControl }: { onSearchClick: () => void; onPlaylistClick: () => void; roomId: string; onLeaveRoom: () => void, onSwitchToVideo: () => void; onSwitchToPlayer: () => void; videoMode: boolean; onInviteClick: () => void; onBackgroundClick: () => void; canControl: boolean; }) => {
     const { user } = useUserSession();
     const avatar = PlaceHolderImages.find(p => p.id === user?.avatarId) ?? PlaceHolderImages[0];
 
@@ -89,6 +90,12 @@ const RoomHeader = ({ onSearchClick, onPlaylistClick, roomId, onLeaveRoom, onSwi
                     <Users className="me-2" />
                     دعوة أصدقاء
                 </Button>
+                {canControl && (
+                   <Button onClick={onBackgroundClick} variant="secondary">
+                        <Wallpaper className="me-2"/>
+                        تغيير الخلفية
+                   </Button>
+                )}
             </div>
 
             {!videoMode && canControl && (
@@ -128,9 +135,11 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const [hostName, setHostName] = useState('');
   const [moderators, setModerators] = useState<string[]>([]);
+  const [roomBackground, setRoomBackground] = useState<string | null>(null);
   
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
+  const [isBackgroundOpen, setIsBackgroundOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [urlInput, setUrlInput] = useState('');
@@ -214,6 +223,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         
         const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
         listeners.push(onValue(videoUrlRef, (snapshot) => setVideoUrl(snapshot.val() || '')));
+        
+        const backgroundUrlRef = ref(database, `rooms/${roomId}/backgroundUrl`);
+        listeners.push(onValue(backgroundUrlRef, (snapshot) => setRoomBackground(snapshot.val() || null)));
 
         const playlistRef = ref(database, `rooms/${roomId}/playlist`);
         listeners.push(onValue(playlistRef, (snapshot) => setPlaylist(snapshot.exists() ? Object.values(snapshot.val()) : [])));
@@ -286,7 +298,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
           return; 
       }).then((result) => {
           if (result.committed && !currentUserSeat) {
-             sendSystemMessage(`@${user.name} انضم إلى المقاعد`);
+             sendSystemMessage(`${user.name} دخل الغرفة`);
           }
       }).catch((error) => {
           console.error("Transaction failed: ", error);
@@ -300,7 +312,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       if (currentUserSeat) {
           const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
           set(seatRef, null).then(() => {
-            sendSystemMessage(`@${user.name} غادر المقاعد`);
+            sendSystemMessage(`${user.name} غادر الغرفة`);
           });
       }
   };
@@ -541,6 +553,16 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const getAvatar = (user: AppUser | Member | SeatedMember) => {
     return PlaceHolderImages.find(p => p.id === user.avatarId) ?? PlaceHolderImages[0];
   }
+  
+  const handleSetBackground = (imageUrl: string) => {
+    if (!canControl) return;
+    set(ref(database, `rooms/${roomId}/backgroundUrl`), imageUrl);
+    setIsBackgroundOpen(false);
+  }
+  
+  const roomBackgrounds = useMemo(() => {
+    return PlaceHolderImages.filter(p => p.id.startsWith('room-bg'));
+  }, []);
 
   if (!isUserLoaded || !user) {
     return (
@@ -551,68 +573,81 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-background items-center">
-        <RoomHeader 
-            onSearchClick={() => setIsSearchOpen(true)} 
-            onPlaylistClick={() => setIsPlaylistOpen(true)}
-            roomId={roomId}
-            onLeaveRoom={handleLeaveRoom}
-            onSwitchToVideo={handleSwitchToVideo}
-            onSwitchToPlayer={handleSwitchToPlayer}
-            videoMode={videoMode}
-            onInviteClick={handleOpenInviteDialog}
-            canControl={canControl}
-        />
-        <main className="w-full max-w-7xl mx-auto flex-grow grid grid-cols-1 md:grid-cols-3 gap-4 px-4 pb-4 min-h-0">
-            {videoMode ? (
-               <div className="md:col-span-3 rounded-lg overflow-hidden h-full">
-                 <VideoConference />
-               </div>
-            ) : (
-                <>
-                <div className="md:col-span-2 flex flex-col gap-4 min-h-0">
-                    <Player 
-                        videoUrl={videoUrl} 
-                        onSetVideo={onSetVideo} 
-                        canControl={canControl} 
-                        onSearchClick={() => setIsSearchOpen(true)}
-                        playerState={playerState}
-                        onPlayerStateChange={handlePlayerStateChange}
-                        onVideoEnded={handleVideoEnded}
-                    />
-                     <Seats 
-                        seatedMembers={seatedMembers}
-                        hostName={hostName}
-                        moderators={moderators}
-                        onTakeSeat={handleTakeSeat}
-                        onLeaveSeat={handleLeaveSeat}
-                        currentUser={user}
-                        isHost={isHost}
-                        onKickUser={handleKickUser}
-                        onPromote={handlePromote}
-                        onDemote={handleDemote}
-                        onTransferHost={handleTransferHost}
-                        room={room}
-                    />
-                    <ViewerInfo members={viewers} />
-                    <div className="flex-grow flex flex-col min-h-0">
-                        <Chat 
-                            roomId={roomId} 
-                            user={user} 
+    <div className="relative flex flex-col h-screen w-full bg-background items-center">
+        {roomBackground && (
+            <div className="absolute inset-0 z-0">
+                <Image
+                    src={roomBackground}
+                    alt="Room background"
+                    fill
+                    className="object-cover"
+                />
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+            </div>
+        )}
+        <div className="relative z-10 w-full flex flex-col h-full items-center">
+            <RoomHeader 
+                onSearchClick={() => setIsSearchOpen(true)} 
+                onPlaylistClick={() => setIsPlaylistOpen(true)}
+                roomId={roomId}
+                onLeaveRoom={handleLeaveRoom}
+                onSwitchToVideo={handleSwitchToVideo}
+                onSwitchToPlayer={handleSwitchToPlayer}
+                videoMode={videoMode}
+                onInviteClick={handleOpenInviteDialog}
+                onBackgroundClick={() => setIsBackgroundOpen(true)}
+                canControl={canControl}
+            />
+            <main className="w-full max-w-7xl mx-auto flex-grow grid grid-cols-1 md:grid-cols-3 gap-4 px-4 pb-4 min-h-0">
+                {videoMode ? (
+                   <div className="md:col-span-3 rounded-lg overflow-hidden h-full">
+                     <VideoConference />
+                   </div>
+                ) : (
+                    <>
+                    <div className="md:col-span-2 flex flex-col gap-4 min-h-0">
+                        <Player 
+                            videoUrl={videoUrl} 
+                            onSetVideo={onSetVideo} 
+                            canControl={canControl} 
+                            onSearchClick={() => setIsSearchOpen(true)}
+                            playerState={playerState}
+                            onPlayerStateChange={handlePlayerStateChange}
+                            onVideoEnded={handleVideoEnded}
+                        />
+                         <Seats 
+                            seatedMembers={seatedMembers}
+                            hostName={hostName}
+                            moderators={moderators}
+                            onTakeSeat={handleTakeSeat}
+                            onLeaveSeat={handleLeaveSeat}
+                            currentUser={user}
                             isHost={isHost}
-                            isSeated={isSeated}
-                            isMuted={isMuted}
-                            onToggleMute={handleToggleMute}
+                            onKickUser={handleKickUser}
+                            onPromote={handlePromote}
+                            onDemote={handleDemote}
+                            onTransferHost={handleTransferHost}
+                            room={room}
                         />
                     </div>
-                </div>
-                <div className="md:col-span-1 flex flex-col min-h-0">
-                   {/* This column is now empty, chat moved to the main column */}
-                </div>
-                </>
-            )}
+                    <div className="md:col-span-1 flex flex-col gap-4 min-h-0">
+                       <ViewerInfo members={viewers} />
+                       <div className="flex-grow flex flex-col min-h-0">
+                           <Chat 
+                                roomId={roomId} 
+                                user={user} 
+                                isHost={isHost}
+                                isSeated={isSeated}
+                                isMuted={isMuted}
+                                onToggleMute={handleToggleMute}
+                            />
+                       </div>
+                    </div>
+                    </>
+                )}
 
-        </main>
+            </main>
+        </div>
          <div className="hidden">
             <AudioConference />
         </div>
@@ -667,6 +702,33 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
            <DialogFooter>
                 <Button variant="outline" onClick={() => setIsPlaylistOpen(false)}>إغلاق</Button>
            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog open={isBackgroundOpen} onOpenChange={setIsBackgroundOpen}>
+        <DialogContent className="max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>اختر خلفية للغرفة</DialogTitle>
+                <DialogDescription>ستظهر الخلفية الجديدة لجميع المستخدمين في الغرفة.</DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto p-1">
+                {roomBackgrounds.map(bg => (
+                    <div key={bg.id} className="relative aspect-video rounded-lg overflow-hidden cursor-pointer group" onClick={() => handleSetBackground(bg.imageUrl)}>
+                        <Image
+                            src={bg.imageUrl}
+                            alt={bg.description}
+                            fill
+                            className="object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                         <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors" />
+                         {roomBackground === bg.imageUrl && (
+                            <div className="absolute top-2 right-2 bg-accent text-accent-foreground rounded-full p-1">
+                                <Check className="w-4 h-4"/>
+                            </div>
+                         )}
+                    </div>
+                ))}
+            </div>
         </DialogContent>
     </Dialog>
 
@@ -872,11 +934,11 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             await goOnline(database);
             const memberData = { name: user.name, avatarId: user.avatarId || 'avatar1', joinedAt: serverTimestamp() };
             await set(memberRef, memberData);
-            sendSystemMessage(`@${user.name} دخل الغرفة`);
+            sendSystemMessage(`${user.name} دخل الغرفة`);
 
             const disconnectRef = onDisconnect(memberRef);
             disconnectRef.remove().then(() => {
-              sendSystemMessage(`@${user.name} غادر الغرفة`);
+              sendSystemMessage(`${user.name} غادر الغرفة`);
             });
 
             // If the current user is the host, set up automatic host transfer on disconnect
@@ -958,7 +1020,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         // Cleanup on component unmount (e.g., navigating away)
         const memberRefOnUnmount = ref(database, `rooms/${roomId}/members/${user.name}`);
         remove(memberRefOnUnmount).then(() => {
-          sendSystemMessage(`@${user.name} غادر الغرفة`);
+          sendSystemMessage(`${user.name} غادر الغرفة`);
         });
 
         goOffline(database);

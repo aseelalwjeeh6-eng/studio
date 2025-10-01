@@ -37,6 +37,42 @@
       "imageHint": "man portrait"
     },
     {
+      "id": "room-bg-1",
+      "description": "Romantic night with city lights",
+      "imageUrl": "https://images.unsplash.com/photo-1531218150217-54595bc2b634?w=1920&h=1080&fit=crop",
+      "imageHint": "night city"
+    },
+    {
+      "id": "room-bg-2",
+      "description": "Cozy room with neon heart",
+      "imageUrl": "https://images.unsplash.com/photo-1581333100643-b0928dbaf342?w=1920&h=1080&fit=crop",
+      "imageHint": "neon heart"
+    },
+    {
+      "id": "room-bg-3",
+      "description": "Starry night sky over mountains",
+      "imageUrl": "https://images.unsplash.com/photo-1464802686167-b939a6910659?w=1920&h=1080&fit=crop",
+      "imageHint": "starry night"
+    },
+    {
+      "id": "room-bg-4",
+      "description": "Balcony view of a city at night",
+      "imageUrl": "https://images.unsplash.com/photo-1504219438097-9a1f107b5a1a?w=1920&h=1080&fit=crop",
+      "imageHint": "night balcony"
+    },
+    {
+      "id": "room-bg-5",
+      "description": "Rainy night on a city street",
+      "imageUrl": "https://images.unsplash.com/photo-1495429828552-a52d3f864858?w=1920&h=1080&fit=crop",
+      "imageHint": "rainy night"
+    },
+    {
+      "id": "room-bg-6",
+      "description": "Full moon in a dark sky",
+      "imageUrl": "https://images.unsplash.com/photo-1532767153582-b1a0e5145009?w=1920&h=1080&fit=crop",
+      "imageHint": "full moon"
+    },
+    {
       "id": "bg1",
       "description": "Romantic background with candles",
       "imageUrl": "https://images.unsplash.com/photo-1597053530944-a5c86c3f3505?w=1920&h=1080&fit=crop",

@@ -289,6 +289,7 @@ export const createRoom = async ({ hostName, roomId }: CreateRoomInput): Promise
       host: hostName,
       createdAt: serverTimestamp(),
       videoUrl: '',
+      backgroundUrl: '',
       seatedMembers: {},
       members: {},
       moderators: [],
