@@ -13,16 +13,9 @@ const firebaseConfig = {
   "measurementId": "G-5G3W9K5153"
 };
 
-let app: FirebaseApp;
-let database: Database;
-
-if (!getApps().length) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApp();
-}
-
-database = getDatabase(app);
+// Initialize Firebase
+const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const database: Database = getDatabase(app);
 
 const getAnalyticsInstance = async () => {
     if (typeof window !== 'undefined') {
