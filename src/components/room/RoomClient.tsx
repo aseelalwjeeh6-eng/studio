@@ -313,16 +313,14 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       const videoUrlRef = ref(database, `rooms/${roomId}/videoUrl`);
       set(videoUrlRef, url);
       const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
-      set(playerStateRef, { isPlaying: true, seekTime: 0, timestamp: serverTimestamp() });
+      set(playerStateRef, { isPlaying: true, seekTime: 0, timestamp: Date.now() });
     }
   }, [canControl, roomId]);
   
   const handlePlayerStateChange = (newState: Partial<PlayerState>) => {
     if (canControl) {
       const playerStateRef = ref(database, `rooms/${roomId}/playerState`);
-      runTransaction(playerStateRef, (currentState) => {
-        return { ...currentState, ...newState, timestamp: serverTimestamp() };
-      });
+      update(playerStateRef, {...newState, timestamp: Date.now() });
     }
   };
 
@@ -603,15 +601,17 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
     let isMounted = true;
 
-    const setupDatabaseAndFetchToken = async () => {
-        try {
+    const setupRoom = async () => {
+        // Run database setup and token fetching in parallel
+        const dbSetupPromise = (async () => {
             await goOnline(database);
             const userRef = ref(database, `rooms/${roomId}/members/${user.name}`);
             const memberData = { name: user.name, avatarId: user.avatarId || 'avatar1', joinedAt: serverTimestamp() };
             await set(userRef, memberData);
             onDisconnect(userRef).remove();
+        })();
 
-            // Fetch token after setting up database presence
+        const tokenFetchPromise = (async () => {
             const res = await fetch(`/api/livekit?room=${roomId}&username=${user.name}`);
             if (!res.ok) {
                 throw new Error(`Failed to fetch token: ${res.statusText}`);
@@ -620,6 +620,10 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             if (isMounted) {
                 setToken(data.token);
             }
+        })();
+
+        try {
+            await Promise.all([dbSetupPromise, tokenFetchPromise]);
         } catch (error) {
             console.error("Error setting up room:", error);
             if (isMounted) {
@@ -629,7 +633,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         }
     };
 
-    setupDatabaseAndFetchToken();
+    setupRoom();
 
     return () => {
         isMounted = false;
@@ -644,10 +648,19 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     };
 }, [isUserLoaded, user, roomId, router, toast]);
 
-  if (!isUserLoaded || !user || !token) {
+  if (!isUserLoaded || !user) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-accent" />
+      </div>
+    );
+  }
+  
+  if (!token) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-16 w-16 animate-spin text-accent" />
+        <p className="ms-4 text-muted-foreground">جارٍ تهيئة الغرفة...</p>
       </div>
     );
   }
