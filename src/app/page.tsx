@@ -29,12 +29,13 @@ export default function LoginPage() {
     }
   }, [isLoaded, user, router]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim() && !isLoggingIn) {
       setIsLoggingIn(true);
       const newUser = { name: name.trim(), avatarId: selectedAvatarId };
-      await upsertUser(newUser);
+      // Do not await this. Let it run in the background.
+      upsertUser(newUser); 
       setUser(newUser);
       router.push('/lobby');
     }
