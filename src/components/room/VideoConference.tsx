@@ -8,13 +8,20 @@ import {
 } from '@livekit/components-react';
 import { Participant } from 'livekit-client';
 import { Loader2 } from 'lucide-react';
+import useUserSession from '@/hooks/use-user-session';
+import { useMemo } from 'react';
+import { useLocalParticipant } from '@livekit/components-react';
+
 
 export default function VideoConference() {
-  const participants = useParticipants({
-    updateOnlyOn: [],
-  });
+  const allParticipants = useParticipants();
+  const { localParticipant } = useLocalParticipant();
 
-  if (participants.length === 0) {
+  const participants = useMemo(() => {
+    return [localParticipant, ...allParticipants];
+  }, [localParticipant, allParticipants]);
+
+  if (!participants || participants.length === 0) {
     return <div className="flex items-center justify-center h-full w-full">
         <Loader2 className="w-10 h-10 animate-spin text-accent" />
         <p className="ms-4">يتم تحميل المشاركين...</p>
@@ -33,5 +40,3 @@ export default function VideoConference() {
     </>
   );
 }
-
-    
