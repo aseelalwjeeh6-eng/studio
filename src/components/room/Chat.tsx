@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { User } from '@/app/providers';
 import { Trash2, Send, Mic, MicOff, MessageCircle } from 'lucide-react';
-import { filterProfanity } from '@/ai/flows/profanity-filter';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -114,7 +113,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
               </AlertDialog>
             )}
         </div>
-        <div className="space-y-4">
+        <div className="space-y-4 pb-20">
         {messages.length > 0 ? messages.map((msg, index) => (
             <div key={index}>
             {msg.isSystemMessage ? (
@@ -135,9 +134,9 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
         )}
         <div ref={chatEndRef} />
         </div>
-        <form onSubmit={handleSendMessage} className="flex w-full items-center gap-2 mt-4 sticky bottom-4">
+        <form onSubmit={handleSendMessage} className="flex w-full items-center gap-2 sticky bottom-4 bg-background/80 backdrop-blur-lg py-2">
            {isSeated && (
-            <Button type="button" size="icon" variant="ghost" onClick={onToggleMute} className="bg-background/80 backdrop-blur-sm">
+            <Button type="button" size="icon" variant="ghost" onClick={onToggleMute}>
               {isMuted ? <MicOff className="w-5 h-5 text-destructive" /> : <Mic className="w-5 h-5 text-accent" />}
             </Button>
           )}
@@ -149,7 +148,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
             className="bg-input/80 backdrop-blur-sm border-border focus:ring-accent"
             disabled={isSending}
           />
-          <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()} className="backdrop-blur-sm">
+          <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}>
             <Send className="h-4 w-4" />
           </Button>
         </form>

@@ -562,13 +562,13 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             onInviteClick={handleOpenInviteDialog}
             canControl={canControl}
         />
-        <main className="w-full max-w-7xl mx-auto flex-grow flex flex-col gap-4 px-4 pb-4">
+        <main className="w-full max-w-7xl mx-auto flex-grow flex flex-col md:flex-row gap-4 px-4 pb-4 min-h-0">
             {videoMode ? (
                <div className="flex-grow rounded-lg overflow-hidden">
                  <VideoConference />
                </div>
             ) : (
-                <div className="flex flex-col gap-4 h-full min-h-0">
+                <div className="flex flex-col gap-4 flex-grow min-h-0">
                     <Player 
                         videoUrl={videoUrl} 
                         onSetVideo={onSetVideo} 
@@ -588,7 +588,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                         isHost={isHost}
                         onKickUser={handleKickUser}
                         onPromote={handlePromote}
-                        onDemote={handleDemote}
+                        onDemote={onDemote}
                         onTransferHost={handleTransferHost}
                         room={room}
                     />
