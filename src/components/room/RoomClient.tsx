@@ -497,6 +497,12 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
         <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
             <DialogContent className="max-w-none w-screen h-screen m-0 p-0 !rounded-none flex flex-col bg-background">
+                <DialogHeader className="sr-only">
+                  <DialogTitle>بحث يوتيوب</DialogTitle>
+                  <DialogDescription>
+                    ابحث عن مقاطع فيديو من يوتيوب لتشغيلها في الغرفة.
+                  </DialogDescription>
+                </DialogHeader>
                 <header className="flex items-center gap-4 p-4 border-b border-border sticky top-0 bg-background z-10">
                     <form onSubmit={handleSearchSubmit} className="flex-grow flex items-center gap-2">
                         <Input
