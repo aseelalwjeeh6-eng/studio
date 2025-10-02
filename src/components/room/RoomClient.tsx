@@ -276,8 +276,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         const currentUserSeat = seatedMembers.find(m => m.name === user.name);
         if (currentUserSeat) {
             const updates: { [key: string]: any } = {};
-            updates[`/rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}/avatarId`] = user.avatarId;
-            updates[`/rooms/${roomId}/members/${user.name}/avatarId`] = user.avatarId;
+            const avatarId = user.avatarId || 'avatar1';
+            updates[`/rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}/avatarId`] = avatarId;
+            updates[`/rooms/${roomId}/members/${user.name}/avatarId`] = avatarId;
             update(ref(database), updates);
         }
     }

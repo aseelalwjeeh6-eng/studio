@@ -282,7 +282,7 @@ type CreateRoomInput = {
     roomId: string;
 };
 
-export const createRoom = async ({ hostName, roomId }: CreateRoomInput): Promise<string> => {
+export const createRoom = async ({ hostName, roomId }: CreateRoomInput): Promise<void> => {
     const roomRef = ref(database, `rooms/${roomId}`);
     
     const roomData = {
@@ -293,9 +293,8 @@ export const createRoom = async ({ hostName, roomId }: CreateRoomInput): Promise
       seatedMembers: {},
       members: {},
       moderators: [],
+      playlist: {},
     };
 
     await set(roomRef, roomData);
-
-    return roomId;
 };
