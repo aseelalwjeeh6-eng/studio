@@ -18,8 +18,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { filterProfanity } from '@/ai/flows/profanity-filter';
-
 
 interface ChatProps {
   roomId: string;
@@ -64,12 +62,10 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
 
     setIsSending(true);
     try {
-        const { filteredText } = await filterProfanity({ text: newMessage });
-
         const chatRef = ref(database, `rooms/${roomId}/chat`);
         const messageData: Message = {
             sender: user.name,
-            text: filteredText,
+            text: newMessage,
             timestamp: Date.now(),
         };
         await push(chatRef, messageData);
