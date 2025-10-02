@@ -125,7 +125,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     } else if (urlType === 'direct' && htmlPlayerRef.current) {
         player = htmlPlayerRef.current;
         getStatus = () => player!.paused ? 2 : 1;
-        play = () => player!.play().catch(console.error);
+        play = () => player!.play().catch(() => {});
         pause = () => player!.pause();
         seek = (time) => { player!.currentTime = time; };
         getCurrentTime = () => player!.currentTime;
@@ -263,7 +263,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     if (playerState) {
         const initialSeekTime = playerState.seekTime + (Date.now() - playerState.timestamp) / 1000;
         htmlPlayerRef.current.currentTime = initialSeekTime;
-        if (playerState.isPlaying) htmlPlayerRef.current.play().catch(console.error);
+        if (playerState.isPlaying) htmlPlayerRef.current.play().catch(() => {});
     }
   };
   

@@ -76,7 +76,6 @@ export default function LobbyPage() {
         roomId: newRoomId,
       });
     } catch (error) {
-      console.error("Failed to create room:", error);
       // Optionally show a toast message to the user and redirect back
       router.push('/lobby');
       setIsCreatingRoom(false);

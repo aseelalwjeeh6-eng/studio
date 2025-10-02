@@ -88,7 +88,6 @@ export default function ProfilePage() {
         toast({ title: "تم إنشاء الصورة الرمزية!", description: "يمكنك الآن تعيينها كصورة رمزية أو خلفية." });
 
     } catch (error) {
-        console.error("Avatar generation failed:", error);
         toast({ title: "فشل إنشاء الصورة", description: "حدث خطأ أثناء محاولة إنشاء صورتك الرمزية. يرجى المحاولة مرة أخرى.", variant: "destructive" });
     } finally {
         setIsGenerating(false);

@@ -178,7 +178,7 @@ export function MainHeader() {
         }
 
     } catch (error) {
-        console.error("Failed to handle notification click:", error);
+        // Failed to handle notification click
     }
   }
 

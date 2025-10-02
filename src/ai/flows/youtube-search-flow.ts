@@ -53,7 +53,6 @@ async function doYoutubeSearch(query: string): Promise<YoutubeSearchOutput> {
     const data = await response.json();
     return YoutubeSearchOutputSchema.parse(data);
   } catch (error) {
-    console.error('Error searching YouTube:', error);
     throw new Error('Failed to search YouTube.');
   }
 }

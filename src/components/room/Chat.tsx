@@ -71,7 +71,7 @@ const Chat = ({ roomId, user, isHost, isSeated, isMuted, onToggleMute }: ChatPro
         await push(chatRef, messageData);
         setNewMessage('');
     } catch(error) {
-        console.error("Error sending message:", error);
+        // Error sending message
     } finally {
         setIsSending(false);
     }

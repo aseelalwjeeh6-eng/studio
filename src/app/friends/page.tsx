@@ -49,7 +49,6 @@ export default function FriendsPage() {
       setRequests(requestsData);
 
     } catch (error) {
-      console.error(error);
       toast({ title: 'حدث خطأ', description: 'فشل في جلب بيانات الأصدقاء والطلبات.', variant: 'destructive' });
     } finally {
       setIsLoadingFriends(false);
@@ -72,7 +71,6 @@ export default function FriendsPage() {
       const results = await searchUsers(searchQuery.trim(), user.name);
       setSearchResults(results);
     } catch (error) {
-      console.error(error);
       toast({ title: 'خطأ في البحث', description: 'فشل البحث عن المستخدمين.', variant: 'destructive' });
     } finally {
       setIsSearching(false);

@@ -302,8 +302,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
           if (result.committed && !currentUserSeat) {
              sendSystemMessage(`${user.name}@ دخل الغرفة`);
           }
-      }).catch((error) => {
-          console.error("Transaction failed: ", error);
+      }).catch(() => {
           toast({ title: "المقعد محجوز بالفعل", variant: "destructive" });
       });
   };
@@ -347,7 +346,6 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         setResults(results.items);
         updateSearchHistory(query.trim());
       } catch (error) {
-          console.error("YouTube search failed:", error);
           if (error instanceof Error && error.message.includes('YOUTUBE_API_KEY')) {
               setSearchError("مفتاح واجهة برمجة تطبيقات YouTube غير مهيأ أو غير صحيح. يرجى إضافته إلى ملف .env للمتابعة.");
           } else if (error instanceof Error) {
@@ -435,7 +433,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                     if(data.title) title = data.title;
                     if(data.thumbnail_url) thumbnail = data.thumbnail_url;
                 } catch(e) {
-                    console.warn("Could not fetch oEmbed details for youtube URL", e);
+                    // Could not fetch oEmbed details for youtube URL
                 }
             }
         }
@@ -983,7 +981,6 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                 }
             } catch (error) {
                  if (isMounted) {
-                    console.error("Error fetching LiveKit token:", error);
                     toast({ title: 'خطأ في الاتصال', description: 'فشل في الحصول على رمز الدخول للغرفة الصوتية.', variant: 'destructive' });
                  }
             }
@@ -993,7 +990,6 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             await Promise.all([presencePromise, tokenFetchPromise]);
         } catch (error) {
             if (isMounted) {
-                console.error("Error setting up room:", error);
                 toast({ title: 'خطأ في الاتصال', description: 'فشل في تهيئة الغرفة.', variant: 'destructive' });
                 router.push('/lobby');
             }
