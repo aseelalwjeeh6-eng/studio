@@ -294,7 +294,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                  const oldSeatRef = ref(database, `rooms/${roomId}/seatedMembers/${currentUserSeat.seatId}`);
                  set(oldSeatRef, null);
               }
-              return { name: user.name, avatarId: user.avatarId, seatId: seatId };
+              return { name: user.name, avatarId: user.avatarId || 'avatar1', seatId: seatId };
           }
           return; 
       }).then((result) => {
