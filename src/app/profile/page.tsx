@@ -13,13 +13,11 @@ import { upsertUser, getUserData } from '@/lib/firebase-service';
 import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
 import { AppUser } from '@/lib/firebase-service';
 
 export default function ProfilePage() {
   const { user, setUser, isLoaded } = useUserSession();
   const router = useRouter();
-  const { toast } = useToast();
   
   const [currentAvatarId, setCurrentAvatarId] = useState<string | undefined>(user?.avatarId);
   const [selectedImage, setSelectedImage] = useState<ImagePlaceholder | null>(null);
@@ -53,7 +51,7 @@ export default function ProfilePage() {
       const updatedUser = { ...user, avatarId: imageToUpdate.id };
       setUser(updatedUser);
       await upsertUser(updatedUser);
-      toast({ title: 'تم تحديث الصورة الرمزية بنجاح!' });
+      alert('تم تحديث الصورة الرمزية بنجاح!');
     });
   };
   
@@ -61,7 +59,7 @@ export default function ProfilePage() {
     if (!imageToSet) return;
     document.body.style.setProperty('--app-background-image', `url(${imageToSet.imageUrl})`);
     localStorage.setItem('app-background-image', imageToSet.imageUrl);
-    toast({ title: 'تم تعيين الخلفية الجديدة!' });
+    alert('تم تعيين الخلفية الجديدة!');
   };
 
 
@@ -85,11 +83,11 @@ export default function ProfilePage() {
         await upsertUser({ name: user.name, newAvatar: newAvatar });
         
         setAvatarPrompt('');
-        toast({ title: "تم إنشاء الصورة الرمزية!", description: "يمكنك الآن تعيينها كصورة رمزية أو خلفية." });
+        alert("تم إنشاء الصورة الرمزية! يمكنك الآن تعيينها كصورة رمزية أو خلفية.");
 
     } catch (error) {
         console.error("Avatar generation failed:", error);
-        toast({ title: "فشل إنشاء الصورة", description: "حدث خطأ أثناء محاولة إنشاء صورتك الرمزية. يرجى المحاولة مرة أخرى.", variant: "destructive" });
+        alert("فشل إنشاء الصورة. حدث خطأ أثناء محاولة إنشاء صورتك الرمزية. يرجى المحاولة مرة أخرى.");
     } finally {
         setIsGenerating(false);
     }

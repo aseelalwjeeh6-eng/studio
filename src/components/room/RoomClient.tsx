@@ -10,7 +10,6 @@ import Chat, { Message } from './Chat';
 import ViewerInfo from './ViewerInfo';
 import { Button } from '../ui/button';
 import { Loader2, MoreVertical, Search, History, X, Youtube, LogOut, Video, Film, Users, Send, Play, Clapperboard, Plus, ListMusic, Wallpaper, Check } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import { AudioConference, useLiveKitRoom, useLocalParticipant, useParticipants } from '@livekit/components-react';
 import LiveKitRoom from './LiveKitRoom';
 import Seats from './Seats';
@@ -157,7 +156,6 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const previewPlayerRef = useRef<YouTubePlayer | null>(null);
 
   
-  const { toast } = useToast();
   const { room } = useLiveKitRoom();
   const { localParticipant } = useLocalParticipant();
   const participants = useParticipants();
@@ -206,7 +204,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         if (!isMounted) return;
 
         if (!roomSnapshot.exists()) {
-          toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
+          alert('الغرفة غير موجودة. تمت إعادة توجيهك إلى الردهة.');
           router.push('/lobby');
           return;
         }
@@ -247,7 +245,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         isMounted = false;
         listeners.forEach(unsubscribe => unsubscribe());
     };
-}, [isUserLoaded, user, roomId, router, toast]);
+}, [isUserLoaded, user, roomId, router]);
 
   useEffect(() => {
       if(typeof window !== 'undefined') {
@@ -304,7 +302,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
           }
       }).catch((error) => {
           console.error("Transaction failed: ", error);
-          toast({ title: "المقعد محجوز بالفعل", variant: "destructive" });
+          alert("المقعد محجوز بالفعل");
       });
   };
 
@@ -410,7 +408,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       };
       const playlistRef = ref(database, `rooms/${roomId}/playlist/${btoa(newItem.id)}`);
       set(playlistRef, newItem);
-      toast({ title: "تمت الإضافة", description: `تمت إضافة "${video.snippet.title}" إلى قائمة التشغيل.` });
+      alert(`تمت إضافة "${video.snippet.title}" إلى قائمة التشغيل.`);
   };
   
   const handleAddUrlToPlaylist = async (url: string) => {
@@ -450,7 +448,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
     const playlistRef = ref(database, `rooms/${roomId}/playlist/${btoa(newItem.id)}`);
     set(playlistRef, newItem);
-    toast({ title: "تمت الإضافة", description: `تمت إضافة فيديو إلى قائمة التشغيل.` });
+    alert(`تمت إضافة فيديو إلى قائمة التشغيل.`);
     setUrlInput('');
   };
 
@@ -498,7 +496,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         const seatRef = ref(database, `rooms/${roomId}/seatedMembers/${userSeat.seatId}`);
         set(seatRef, null);
     }
-    toast({ title: `تم طرد ${userNameToKick}` });
+    alert(`تم طرد ${userNameToKick}`);
   };
   
   const handleOpenInviteDialog = async () => {
@@ -509,7 +507,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       setInvitedFriends(new Set()); // Reset invited state on open
       setIsInviteOpen(true);
     } catch(error) {
-      toast({ title: "خطأ", description: "فشل في جلب قائمة الأصدقاء.", variant: "destructive" });
+      alert("فشل في جلب قائمة الأصدقاء.");
     }
   };
 
@@ -518,9 +516,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     try {
         await sendRoomInvitation(user.name, recipientName, roomId, `غرفة ${hostName}`);
         setInvitedFriends(prev => new Set(prev).add(recipientName));
-        toast({ title: "تم إرسال الدعوة", description: `تمت دعوة ${recipientName} إلى الغرفة.` });
+        alert(`تمت دعوة ${recipientName} إلى الغرفة.`);
     } catch (error: any) {
-        toast({ title: "خطأ", description: error.message, variant: "destructive" });
+        alert(error.message);
     }
   };
 
@@ -529,7 +527,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       const roomRef = ref(database, `rooms/${roomId}/moderators`);
       const newModerators = [...moderators, userName];
       set(roomRef, newModerators);
-      toast({ title: "تمت الترقية", description: `أصبح ${userName} مشرفًا.` });
+      alert(`أصبح ${userName} مشرفًا.`);
   }
 
   const handleDemote = (userName: string) => {
@@ -537,7 +535,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       const roomRef = ref(database, `rooms/${roomId}/moderators`);
       const newModerators = moderators.filter(mod => mod !== userName);
       set(roomRef, newModerators);
-      toast({ title: "تم تخفيض الرتبة", description: `لم يعد ${userName} مشرفًا.` });
+      alert(`لم يعد ${userName} مشرفًا.`);
   }
 
   const handleTransferHost = (userName: string) => {
@@ -549,7 +547,7 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       updates[`/rooms/${roomId}/moderators`] = newModerators;
 
       update(ref(database), updates);
-      toast({ title: "تم نقل الملكية", description: `أصبحت الغرفة الآن ملك ${userName}.` });
+      alert(`أصبحت الغرفة الآن ملك ${userName}.`);
   }
 
   const getAvatar = (user: AppUser | Member | SeatedMember) => {
@@ -888,7 +886,6 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUserSession();
   const [token, setToken] = useState('');
-  const { toast } = useToast();
   
   const sendSystemMessage = useCallback((text: string) => {
     if (!roomId || !user) return;
@@ -920,7 +917,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         if (!isMounted) return;
         
         if (!roomSnapshot.exists()) {
-            toast({ title: 'الغرفة غير موجودة', description: 'تمت إعادة توجيهك إلى الردهة.', variant: 'destructive' });
+            alert('الغرفة غير موجودة. تمت إعادة توجيهك إلى الردهة.');
             router.push('/lobby');
             return;
         }
@@ -984,7 +981,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
             } catch (error) {
                  if (isMounted) {
                     console.error("Error fetching LiveKit token:", error);
-                    toast({ title: 'خطأ في الاتصال', description: 'فشل في الحصول على رمز الدخول للغرفة الصوتية.', variant: 'destructive' });
+                    alert('فشل في الحصول على رمز الدخول للغرفة الصوتية.');
                  }
             }
         })();
@@ -994,7 +991,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         } catch (error) {
             if (isMounted) {
                 console.error("Error setting up room:", error);
-                toast({ title: 'خطأ في الاتصال', description: 'فشل في تهيئة الغرفة.', variant: 'destructive' });
+                alert('فشل في تهيئة الغرفة.');
                 router.push('/lobby');
             }
         }
@@ -1023,7 +1020,7 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
         onDisconnect(hostRef).cancel();
         onDisconnect(ref(database, `rooms/${roomId}`)).cancel();
     };
-}, [isUserLoaded, user, roomId, router, toast, sendSystemMessage]);
+}, [isUserLoaded, user, roomId, router, sendSystemMessage]);
 
   if (!isUserLoaded || !user) {
     return (

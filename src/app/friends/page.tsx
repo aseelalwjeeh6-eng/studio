@@ -10,12 +10,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, UserPlus, Users, Search, Mail, UserCheck, UserX } from 'lucide-react';
 import { searchUsers, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, getFriendRequests, getFriends, removeFriend, AppUser } from '@/lib/firebase-service';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { useToast } from '@/hooks/use-toast';
 
 export default function FriendsPage() {
   const { user, isLoaded } = useUserSession();
   const router = useRouter();
-  const { toast } = useToast();
   
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,7 +48,6 @@ export default function FriendsPage() {
 
     } catch (error) {
       console.error(error);
-      toast({ title: 'حدث خطأ', description: 'فشل في جلب بيانات الأصدقاء والطلبات.', variant: 'destructive' });
     } finally {
       setIsLoadingFriends(false);
       setIsLoadingRequests(false);
@@ -73,7 +70,6 @@ export default function FriendsPage() {
       setSearchResults(results);
     } catch (error) {
       console.error(error);
-      toast({ title: 'خطأ في البحث', description: 'فشل البحث عن المستخدمين.', variant: 'destructive' });
     } finally {
       setIsSearching(false);
     }
@@ -84,10 +80,10 @@ export default function FriendsPage() {
     startTransition(async () => {
       try {
         await sendFriendRequest(user.name, recipientName);
-        toast({ title: 'تم الإرسال', description: `تم إرسال طلب صداقة إلى ${recipientName}.` });
+        alert(`تم إرسال طلب صداقة إلى ${recipientName}.`);
         setSearchResults(prev => prev.filter(u => u.name !== recipientName));
       } catch (error: any) {
-        toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+        alert(error.message);
       }
     });
   };
@@ -97,10 +93,10 @@ export default function FriendsPage() {
     startTransition(async () => {
       try {
         await acceptFriendRequest(senderName, user.name);
-        toast({ title: 'تم القبول', description: `أصبحت الآن صديقًا لـ ${senderName}.` });
+        alert(`أصبحت الآن صديقًا لـ ${senderName}.`);
         fetchFriendsAndRequests(); // Refresh lists
       } catch (error: any) {
-        toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+        alert(error.message);
       }
     });
   };
@@ -110,10 +106,10 @@ export default function FriendsPage() {
     startTransition(async () => {
       try {
         await rejectFriendRequest(senderName, user.name);
-        toast({ title: 'تم الرفض', description: `تم رفض طلب الصداقة من ${senderName}.` });
+        alert(`تم رفض طلب الصداقة من ${senderName}.`);
         setRequests(prev => prev.filter(r => r.name !== senderName));
       } catch (error: any) {
-        toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+        alert(error.message);
       }
     });
   };
@@ -123,10 +119,10 @@ export default function FriendsPage() {
     startTransition(async () => {
         try {
             await removeFriend(user.name, friendName);
-            toast({ title: 'تم الحذف', description: `تم حذف ${friendName} من قائمة أصدقائك.` });
+            alert(`تم حذف ${friendName} من قائمة أصدقائك.`);
             setFriends(prev => prev.filter(f => f.name !== friendName));
         } catch (error: any) {
-            toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+            alert(error.message);
         }
     });
 };

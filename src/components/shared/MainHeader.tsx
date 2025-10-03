@@ -9,16 +9,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import useUserSession from '@/hooks/use-user-session';
-import { useEffect, useState, useRef } from 'react';
-import { AppNotification, getNotifications, removeNotification } from '@/lib/firebase-service';
-import { Bell, LogIn, UserPlus } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 
 
 // Inlined SVG components to avoid lucide-react HMR issues
@@ -105,49 +99,7 @@ export function MainHeader() {
   const { user, setUser } = useUserSession();
   const pathname = usePathname();
   const router = useRouter();
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [hasUnread, setHasUnread] = useState(false);
-  const { toast } = useToast();
-  const displayedToasts = useRef(new Set());
-
-  const fetchNotifications = async (isInitialFetch = false) => {
-    if (!user) return;
-    const oldNotifications = isInitialFetch ? [] : notifications;
-    const newNotifications = await getNotifications(user.name);
-    
-    setNotifications(newNotifications.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)));
-    setHasUnread(newNotifications.some(n => !n.read));
-
-    if (!isInitialFetch) {
-      const trulyNew = newNotifications.filter(
-        (newNotif) => !oldNotifications.some((oldNotif) => oldNotif.id === newNotif.id) && !displayedToasts.current.has(newNotif.id)
-      );
-
-      trulyNew.forEach((notif) => {
-        if (!notif.id) return;
-        displayedToasts.current.add(notif.id);
-        toast({
-          id: notif.id,
-          title: notif.title,
-          description: notif.body,
-          action: {
-            label: notif.type === 'roomInvitation' ? 'انضمام' : 'عرض',
-            onClick: () => handleNotificationClick(notif)
-          },
-        });
-      });
-    }
-  };
-
-
-  useEffect(() => {
-    if (user) {
-        fetchNotifications(true);
-        const interval = setInterval(() => fetchNotifications(false), 5000); // Poll every 5 seconds
-        return () => clearInterval(interval);
-    }
-  }, [user]);
-
+  
   const handleLogout = () => {
     setUser(null);
     router.push('/');
@@ -159,36 +111,6 @@ export function MainHeader() {
     { href: '/profile', label: 'الملف الشخصي' },
   ];
   
-  const handleNotificationClick = async (notification: AppNotification) => {
-    if (!user || !notification.id) return;
-    
-    try {
-        if (notification.type === 'friendRequest') {
-            router.push('/friends');
-        } else if (notification.type === 'roomInvitation' && notification.roomId) {
-            router.push(`/rooms/${notification.roomId}`);
-        }
-
-        await removeNotification(user.name, notification.id);
-        
-        // Optimistically update UI
-        setNotifications(prev => prev.filter(n => n.id !== notification.id));
-        if (displayedToasts.current.has(notification.id)) {
-            displayedToasts.current.delete(notification.id);
-        }
-
-    } catch (error) {
-        console.error("Failed to handle notification click:", error);
-    }
-  }
-
-  const handleOpenMenu = () => {
-    if (notifications.some(n => !n.read)) {
-        setHasUnread(false);
-        // Optionally mark all as read in the backend
-    }
-  }
-
   return (
     <header className="bg-card/50 backdrop-blur-lg border-b border-accent/20 sticky top-0 z-40">
       <div className="container mx-auto flex h-20 items-center justify-between px-4">
@@ -244,41 +166,6 @@ export function MainHeader() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <DropdownMenu onOpenChange={handleOpenMenu}>
-            <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative rounded-full">
-                    <Bell className="h-5 w-5" />
-                    {hasUnread && (
-                    <span className="absolute top-1 right-1 flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-accent"></span>
-                    </span>
-                    )}
-                    <span className="sr-only">Notifications</span>
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 bg-card/80 backdrop-blur-lg">
-                <DropdownMenuLabel>الإشعارات</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {notifications.length > 0 ? (
-                    notifications.map((notif) => (
-                        <DropdownMenuItem key={notif.id} className="flex justify-between items-start cursor-pointer p-3" onSelect={(e) => { e.preventDefault(); handleNotificationClick(notif); }}>
-                           <div className="flex items-start">
-                             {notif.type === 'friendRequest' ? <UserPlus className="me-3 mt-1 text-accent flex-shrink-0" /> : <LogIn className="me-3 mt-1 text-accent flex-shrink-0" />}
-                             <div className='flex flex-col'>
-                                <span className='font-semibold'>{notif.title}</span>
-                                <span className='text-xs text-muted-foreground whitespace-normal'>{notif.body}</span>
-                             </div>
-                           </div>
-                        </DropdownMenuItem>
-                    ))
-                ) : (
-                    <p className="p-4 text-center text-sm text-muted-foreground">لا توجد إشعارات جديدة.</p>
-                )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
 
           {user && (
             <div className="text-sm text-muted-foreground hidden md:block">

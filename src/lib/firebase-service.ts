@@ -40,17 +40,6 @@ export interface AppUser {
 }
 
 
-export type AppNotification = {
-    id: string;
-    type: 'friendRequest' | 'roomInvitation';
-    title: string;
-    body: string;
-    senderName: string;
-    roomId?: string;
-    timestamp: number;
-    read?: boolean;
-}
-
 const getUsersRef = (db: Database) => ref(db, 'users');
 const getUserRef = (db: Database, username: string) => ref(db, `users/${username}`);
 
@@ -216,65 +205,6 @@ export const sendRoomInvitation = async (senderName: string, recipientName: stri
         read: false,
     };
     await set(newInvitationRef, newInvitation);
-};
-
-export const getNotifications = async (username: string): Promise<AppNotification[]> => {
-    const data = await getUserData(username);
-    if (!data) return [];
-
-    const notifications: AppNotification[] = [];
-
-    if (data.friendRequests) {
-        Object.entries(data.friendRequests).forEach(([key, req]) => {
-            notifications.push({
-                id: key, // Use the key from Firebase as the ID
-                type: 'friendRequest',
-                title: 'طلب صداقة جديد',
-                body: `${req.senderName} يريد أن يصبح صديقك.`,
-                senderName: req.senderName,
-                timestamp: req.timestamp,
-                read: req.read,
-            });
-        });
-    }
-
-    if (data.invitations) {
-        Object.entries(data.invitations).forEach(([key, inv]) => {
-            notifications.push({
-                id: key, // Use the key from Firebase as the ID
-                type: 'roomInvitation',
-                title: `دعوة إلى ${inv.roomName}`,
-                body: `${inv.senderName} يدعوك للانضمام.`,
-                senderName: inv.senderName,
-                roomId: inv.roomId,
-                timestamp: inv.timestamp,
-                read: inv.read
-            });
-        });
-    }
-
-    return notifications;
-};
-
-export const removeNotification = async (username: string, notificationId: string) => {
-    const userData = await getUserData(username);
-    if (!userData) return;
-
-    if (userData.invitations && userData.invitations[notificationId]) {
-        await remove(ref(database, `users/${username}/invitations/${notificationId}`));
-    } else if (userData.friendRequests && userData.friendRequests[notificationId]) {
-        await remove(ref(database, `users/${username}/friendRequests/${notificationId}`));
-    } else {
-        // Fallback for old structure if necessary
-         if (userData.invitations) {
-            const key = Object.keys(userData.invitations).find(k => userData.invitations![k].id === notificationId);
-            if(key) await remove(ref(database, `users/${username}/invitations/${key}`));
-        }
-        if (userData.friendRequests) {
-            const key = Object.keys(userData.friendRequests).find(k => userData.friendRequests![k].id === notificationId);
-            if(key) await remove(ref(database, `users/${username}/friendRequests/${key}`));
-        }
-    }
 };
 
 type CreateRoomInput = {

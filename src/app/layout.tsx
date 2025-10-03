@@ -4,7 +4,6 @@ import '@livekit/components-styles';
 import { Alegreya } from 'next/font/google';
 import { cn } from '@/lib/utils';
 import { AppProviders } from '@/app/providers';
-import { Toaster } from '@/components/ui/toaster';
 
 const alegreya = Alegreya({
   subsets: ['latin'],
@@ -28,7 +27,6 @@ export default function RootLayout({
       <body className={cn('font-body antialiased', alegreya.className)}>
         <AppProviders>
           <main>{children}</main>
-          <Toaster />
         </AppProviders>
       </body>
     </html>
