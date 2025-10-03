@@ -124,7 +124,7 @@ const RoomHeader = ({ onSearchClick, onPlaylistClick, roomId, onLeaveRoom, onSwi
     )
 }
 
-const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?: boolean }) => {
+const RoomLayout = ({ roomId }: { roomId: string }) => {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUserSession();
   const [allMembers, setAllMembers] = useState<Member[]>([]);
@@ -137,6 +137,8 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const [moderators, setModerators] = useState<string[]>([]);
   const [roomBackground, setRoomBackground] = useState<string | null>(null);
   
+  const [videoMode, setVideoMode] = useState(false);
+
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
   const [isBackgroundOpen, setIsBackgroundOpen] = useState(false);
@@ -197,14 +199,6 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const handleLeaveRoom = () => {
     router.push('/lobby');
   };
-
-  const handleSwitchToVideo = () => {
-    router.push(`/rooms/${roomId}/video`);
-  };
-
-  const handleSwitchToPlayer = () => {
-      router.push(`/rooms/${roomId}`);
-  }
   
   useEffect(() => {
     if (!isUserLoaded || !user) return;
@@ -222,6 +216,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
           router.push('/lobby');
           return;
         }
+        
+        const initialRoomData = roomSnapshot.val();
+        setVideoMode(initialRoomData.videoMode || false);
 
         const membersRef = ref(database, `rooms/${roomId}/members`);
         listeners.push(onValue(membersRef, (snapshot) => setAllMembers(snapshot.exists() ? Object.values(snapshot.val()) : [])));
@@ -251,6 +248,9 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 
         const moderatorsRef = ref(database, `rooms/${roomId}/moderators`);
         listeners.push(onValue(moderatorsRef, (snapshot) => setModerators(snapshot.val() || [])));
+        
+        const videoModeRef = ref(database, `rooms/${roomId}/videoMode`);
+        listeners.push(onValue(videoModeRef, (snapshot) => setVideoMode(snapshot.val() || false)));
     };
 
     setupListeners();
@@ -577,6 +577,13 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
   const roomBackgrounds = useMemo(() => {
     return [...PlaceHolderImages.filter(p => p.id.startsWith('room-bg')), ...PlaceHolderImages.filter(p => p.id.startsWith('user-bg'))];
   }, []);
+  
+  const handleSetVideoMode = (mode: boolean) => {
+    if (canControl) {
+      set(ref(database, `rooms/${roomId}/videoMode`), mode);
+    }
+    setVideoMode(mode);
+  }
 
   if (!isUserLoaded || !user) {
     return (
@@ -605,8 +612,8 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                 onPlaylistClick={() => setIsPlaylistOpen(true)}
                 roomId={roomId}
                 onLeaveRoom={handleLeaveRoom}
-                onSwitchToVideo={handleSwitchToVideo}
-                onSwitchToPlayer={handleSwitchToPlayer}
+                onSwitchToVideo={() => handleSetVideoMode(true)}
+                onSwitchToPlayer={() => handleSetVideoMode(false)}
                 videoMode={videoMode}
                 onInviteClick={handleOpenInviteDialog}
                 onBackgroundClick={() => setIsBackgroundOpen(true)}
@@ -655,7 +662,6 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                         />
                     </div>
                 )}
-
             </main>
         </div>
          <div className="hidden">
@@ -896,10 +902,12 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 }
 
 
-const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?: boolean }) => {
+const RoomClient = ({ roomId }: { roomId: string }) => {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUserSession();
   const [token, setToken] = useState('');
+  const [isSeated, setIsSeated] = useState(false);
+  const [videoMode, setVideoMode] = useState(false);
   
   const sendSystemMessage = useCallback((text: string) => {
     if (!roomId || !user) return;
@@ -912,6 +920,32 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
     };
     push(chatRef, messageData);
   }, [roomId, user]);
+
+  useEffect(() => {
+    if (!isUserLoaded) return;
+    if (!user) {
+        router.push('/');
+        return;
+    }
+
+    const seatedMembersRef = ref(database, `rooms/${roomId}/seatedMembers`);
+    const videoModeRef = ref(database, `rooms/${roomId}/videoMode`);
+
+    const seatedListener = onValue(seatedMembersRef, (snapshot) => {
+        const seatedData = snapshot.val();
+        const isCurrentlySeated = seatedData ? Object.values(seatedData).some((member: any) => member.name === user.name) : false;
+        setIsSeated(isCurrentlySeated);
+    });
+
+    const videoModeListener = onValue(videoModeRef, (snapshot) => {
+      setVideoMode(snapshot.val() || false);
+    });
+    
+    return () => {
+        off(seatedMembersRef, 'value', seatedListener);
+        off(videoModeRef, 'value', videoModeListener);
+    }
+  }, [isUserLoaded, user, roomId, router]);
 
 
   useEffect(() => {
@@ -1058,10 +1092,10 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL!}
       user={user}
-      isSeated={true} // This will be managed within RoomLayout based on seatedMembers state
+      isSeated={isSeated}
       videoMode={videoMode}
     >
-      <RoomLayout roomId={roomId} videoMode={videoMode} />
+      <RoomLayout roomId={roomId} />
     </LiveKitRoom>
   );
 };

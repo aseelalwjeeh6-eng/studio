@@ -18,7 +18,8 @@ export default function VideoConference() {
     return [localParticipant, ...allParticipants];
   }, [localParticipant, allParticipants]);
 
-  if (!participants || participants.length === 0) {
+
+  if (participants.length === 0) {
     return (
       <div className="flex items-center justify-center h-full w-full">
         <Loader2 className="w-10 h-10 animate-spin text-accent" />
