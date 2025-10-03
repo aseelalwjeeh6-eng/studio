@@ -21,7 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages, ImagePlaceholder } from '@/lib/placeholder-images';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
 import VideoConference from './VideoConference';
-import { AppUser, getFriends, sendRoomInvitation } from '@/lib/firebase-service';
+import { AppUser, getFriends, sendRoomInvitation, getFriendRequests } from '@/lib/firebase-service';
 import YouTube, { YouTubePlayer } from 'react-youtube';
 import Playlist, { PlaylistItem } from './Playlist';
 import { cn } from '@/lib/utils';
@@ -178,6 +178,20 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
       const participant = [localParticipant, ...participants].find(p => p.identity === user?.name);
       return participant ? !participant.isMicrophoneEnabled : true;
   }, [localParticipant, participants, user?.name]);
+
+  const [friendData, setFriendData] = useState<{ friends: AppUser[]; requests: AppUser[] }>({ friends: [], requests: [] });
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchFriendData = async () => {
+        const [friendsList, requestsList] = await Promise.all([
+            getFriends(user.name),
+            getFriendRequests(user.name)
+        ]);
+        setFriendData({ friends: friendsList, requests: requestsList });
+    };
+    fetchFriendData();
+  }, [user]);
 
 
   const handleLeaveRoom = () => {
@@ -627,6 +641,8 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                             onDemote={handleDemote}
                             onTransferHost={handleTransferHost}
                             room={room}
+                            currentUserFriends={friendData.friends}
+                            currentUserRequests={friendData.requests}
                         />
                         <div className="flex-grow flex flex-col gap-4 min-h-0">
                             <ViewerInfo members={viewers} />
@@ -1053,3 +1069,5 @@ const RoomClient = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
 };
 
 export default RoomClient;
+
+    

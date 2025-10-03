@@ -1,16 +1,18 @@
 'use client';
 
-import { Armchair, MicOff, User, LogOut, ShieldX, Crown, ShieldCheck, ArrowDownUp } from 'lucide-react';
+import { Armchair, MicOff, User, LogOut, ShieldX, Crown, ShieldCheck, ArrowDownUp, UserPlus } from 'lucide-react';
 import { SeatedMember } from './RoomClient';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLocalParticipant, useParticipants } from '@livekit/components-react';
 import { Participant, Room } from 'livekit-client';
 import { cn } from '@/lib/utils';
+import { AppUser } from '@/lib/firebase-service';
 import { User as UserSession } from '@/app/providers';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
+import { sendFriendRequest } from '@/lib/firebase-service';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +41,8 @@ const Seat = ({
     onDemote,
     onTransferHost,
     room,
+    currentUserFriends,
+    currentUserRequests,
 }: { 
     seatId: number;
     seatedMember?: SeatedMember;
@@ -55,6 +59,8 @@ const Seat = ({
     onDemote: (userName: string) => void;
     onTransferHost: (userName: string) => void;
     room?: Room;
+    currentUserFriends: AppUser[];
+    currentUserRequests: AppUser[];
 }) => {
     const isOccupied = !!seatedMember;
     const isCurrentUserSeatedHere = isOccupied && seatedMember.name === currentUser.name;
@@ -79,62 +85,90 @@ const Seat = ({
             }
         }
     };
+    
+    const handleSendFriendRequest = async () => {
+        if (!seatedMember || !currentUser) return;
+        try {
+            await sendFriendRequest(currentUser.name, seatedMember.name);
+            alert(`تم إرسال طلب صداقة إلى ${seatedMember.name}.`);
+        } catch (error: any) {
+            alert(error.message);
+        }
+    };
 
-    const controls = (isHost || (isCurrentUserModerator && !isMemberModerator)) && participant && !isCurrentUserSeatedHere && (
+    const isFriend = seatedMember ? currentUserFriends.some(f => f.name === seatedMember.name) : false;
+    const hasSentRequest = seatedMember ? currentUserRequests.some(r => r.name === seatedMember.name) : false;
+
+    const canAddFriend = seatedMember && !isCurrentUserSeatedHere && !isFriend && !hasSentRequest;
+
+
+    const controls = (
         <DropdownMenuContent>
-            {isHost && !isMemberHost && (
+            {(isHost || (isCurrentUserModerator && !isMemberModerator)) && participant && !isCurrentUserSeatedHere && (
                 <>
-                    {isMemberModerator ? (
-                        <DropdownMenuItem onClick={() => onDemote(seatedMember!.name)}>
-                            <ArrowDownUp className="me-2" /> تخفيض إلى عضو
-                        </DropdownMenuItem>
-                    ) : (
-                        <DropdownMenuItem onClick={() => onPromote(seatedMember!.name)}>
-                            <ShieldCheck className="me-2" /> ترقية إلى مشرف
-                        </DropdownMenuItem>
+                    {isHost && !isMemberHost && (
+                        <>
+                            {isMemberModerator ? (
+                                <DropdownMenuItem onClick={() => onDemote(seatedMember!.name)}>
+                                    <ArrowDownUp className="me-2" /> تخفيض إلى عضو
+                                </DropdownMenuItem>
+                            ) : (
+                                <DropdownMenuItem onClick={() => onPromote(seatedMember!.name)}>
+                                    <ShieldCheck className="me-2" /> ترقية إلى مشرف
+                                </DropdownMenuItem>
+                            )}
+                            
+                            <DropdownMenuSeparator />
+                            
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                        <Crown className="me-2" /> نقل الملكية
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>هل تريد نقل ملكية الغرفة؟</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                           سيتم منح {seatedMember!.name} جميع صلاحيات المضيف، وستفقد صلاحياتك كمضيف. لا يمكن التراجع عن هذا الإجراء.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => onTransferHost(seatedMember!.name)}>
+                                            نعم، قم بنقل الملكية
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                            
+                            <DropdownMenuSeparator />
+                        </>
+                    )}
+
+                    {!isMuted && (
+                      <DropdownMenuItem onClick={handleRemoteMute}>
+                          <MicOff className="me-2" /> كتم الصوت
+                      </DropdownMenuItem>
                     )}
                     
-                    <DropdownMenuSeparator />
-                    
-                     <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                <Crown className="me-2" /> نقل الملكية
+                    {canKick && (
+                         <>
+                            {!isMuted && <DropdownMenuSeparator />}
+                            <DropdownMenuItem onClick={() => onKickUser(seatedMember!.name)} className="text-destructive">
+                                <ShieldX className="me-2" /> طرد من الغرفة
                             </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>هل تريد نقل ملكية الغرفة؟</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                   سيتم منح {seatedMember!.name} جميع صلاحيات المضيف، وستفقد صلاحياتك كمضيف. لا يمكن التراجع عن هذا الإجراء.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => onTransferHost(seatedMember!.name)}>
-                                    نعم، قم بنقل الملكية
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                    
-                    <DropdownMenuSeparator />
+                         </>
+                    )}
+
+                    {canAddFriend && <DropdownMenuSeparator />}
                 </>
             )}
 
-            {!isMuted && (
-              <DropdownMenuItem onClick={handleRemoteMute}>
-                  <MicOff className="me-2" /> كتم الصوت
-              </DropdownMenuItem>
-            )}
-            
-            {canKick && (
-                 <>
-                    {!isMuted && <DropdownMenuSeparator />}
-                    <DropdownMenuItem onClick={() => onKickUser(seatedMember!.name)} className="text-destructive">
-                        <ShieldX className="me-2" /> طرد من الغرفة
-                    </DropdownMenuItem>
-                 </>
+            {canAddFriend && (
+                <DropdownMenuItem onClick={handleSendFriendRequest}>
+                    <UserPlus className="me-2" /> إضافة صديق
+                </DropdownMenuItem>
             )}
         </DropdownMenuContent>
     );
@@ -146,7 +180,7 @@ const Seat = ({
             return (
                 <div className="relative">
                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild disabled={!controls}>
+                        <DropdownMenuTrigger asChild>
                              <Avatar className={cn(
                                 "w-16 h-16 border-2 cursor-pointer",
                                 isSpeaking ? "border-accent animate-pulse" : "border-transparent",
@@ -227,6 +261,8 @@ const Seats = ({
     onDemote,
     onTransferHost,
     room,
+    currentUserFriends,
+    currentUserRequests,
 }: { 
     seatedMembers: SeatedMember[],
     hostName: string,
@@ -240,6 +276,8 @@ const Seats = ({
     onDemote: (userName: string) => void;
     onTransferHost: (userName: string) => void;
     room?: Room;
+    currentUserFriends: AppUser[];
+    currentUserRequests: AppUser[];
 }) => {
     const totalSeats = 8;
   
@@ -285,6 +323,8 @@ const Seats = ({
                         onDemote={onDemote}
                         onTransferHost={onTransferHost}
                         room={room}
+                        currentUserFriends={currentUserFriends}
+                        currentUserRequests={currentUserRequests}
                     />
                 ))}
             </div>
@@ -293,3 +333,5 @@ const Seats = ({
 };
 
 export default Seats;
+
+    

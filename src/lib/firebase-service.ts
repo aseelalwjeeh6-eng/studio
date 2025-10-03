@@ -101,17 +101,26 @@ export const searchUsers = async (nameQuery: string, currentUsername: string): P
 };
 
 export const sendFriendRequest = async (senderName: string, recipientName: string) => {
-    const recipientData = await getUserData(recipientName);
+    if (senderName === recipientName) throw new Error("لا يمكنك إضافة نفسك كصديق.");
 
+    const recipientData = await getUserData(recipientName);
     if (!recipientData) throw new Error('المستخدم الذي تحاول إضافته غير موجود.');
-    if (recipientData.friendRequests && Object.values(recipientData.friendRequests).some(req => req.senderName === senderName)) {
-        throw new Error('لقد أرسلت طلب صداقة لهذا المستخدم بالفعل.');
-    }
-    if (recipientData.friends && recipientData.friends[senderName]) {
+
+    const senderData = await getUserData(senderName);
+    if (senderData?.friends && senderData.friends[recipientName]) {
         throw new Error('هذا المستخدم صديقك بالفعل.');
     }
-
+    
     const recipientRequestsRef = ref(database, `users/${recipientName}/friendRequests`);
+    const snapshot = await get(recipientRequestsRef);
+    if (snapshot.exists()) {
+        const requests = snapshot.val();
+        const existingRequest = Object.values(requests).find((req: any) => req.senderName === senderName);
+        if (existingRequest) {
+            throw new Error('لقد أرسلت طلب صداقة لهذا المستخدم بالفعل.');
+        }
+    }
+
     const newRequestRef = push(recipientRequestsRef);
     const newRequest: FriendRequest = {
         id: newRequestRef.key!,
@@ -179,6 +188,11 @@ export const getFriends = async (username: string): Promise<AppUser[]> => {
     return users;
 };
 
+export const areFriends = async (username1: string, username2: string): Promise<boolean> => {
+    const user1Data = await getUserData(username1);
+    return user1Data?.friends?.[username2] === true;
+};
+
 export const removeFriend = async (currentUsername: string, friendNameToRemove: string) => {
     const updates: { [key: string]: any } = {};
     updates[`/users/${currentUsername}/friends/${friendNameToRemove}`] = null;
@@ -228,3 +242,5 @@ export const createRoom = async ({ hostName, roomId }: CreateRoomInput): Promise
 
     await set(roomRef, roomData);
 };
+
+    
