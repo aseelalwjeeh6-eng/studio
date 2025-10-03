@@ -21,7 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { PlaceHolderImages, ImagePlaceholder } from '@/lib/placeholder-images';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
 import VideoConference from './VideoConference';
-import { AppUser, getFriends, sendRoomInvitation, getFriendRequests } from '@/lib/firebase-service';
+import { AppUser, getFriends, sendRoomInvitation, getFriendRequests, areFriends } from '@/lib/firebase-service';
 import YouTube, { YouTubePlayer } from 'react-youtube';
 import Playlist, { PlaylistItem } from './Playlist';
 import { cn } from '@/lib/utils';
@@ -644,17 +644,15 @@ const RoomLayout = ({ roomId, videoMode = false }: { roomId: string, videoMode?:
                             currentUserFriends={friendData.friends}
                             currentUserRequests={friendData.requests}
                         />
-                        <div className="flex-grow flex flex-col gap-4 min-h-0">
-                            <ViewerInfo members={viewers} />
-                            <Chat 
-                                roomId={roomId} 
-                                user={user} 
-                                isHost={isHost}
-                                isSeated={isSeated}
-                                isMuted={isMuted}
-                                onToggleMute={handleToggleMute}
-                            />
-                        </div>
+                        <ViewerInfo members={viewers} />
+                        <Chat 
+                            roomId={roomId} 
+                            user={user} 
+                            isHost={isHost}
+                            isSeated={isSeated}
+                            isMuted={isMuted}
+                            onToggleMute={handleToggleMute}
+                        />
                     </div>
                 )}
 
