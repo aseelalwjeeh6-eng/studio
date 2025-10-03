@@ -15,11 +15,13 @@ export default function VideoConference() {
   const { localParticipant } = useLocalParticipant();
 
   const participants = useMemo(() => {
+    // localParticipant can be undefined initially
+    if (!localParticipant) return [];
     return [localParticipant, ...allParticipants];
   }, [localParticipant, allParticipants]);
 
-
-  if (participants.length === 0) {
+  // Add a specific check for when participants array is not yet populated
+  if (!participants || participants.length === 0) {
     return (
       <div className="flex items-center justify-center h-full w-full">
         <Loader2 className="w-10 h-10 animate-spin text-accent" />
