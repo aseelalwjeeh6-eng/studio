@@ -4,6 +4,7 @@ import '@livekit/components-styles';
 import { Alegreya } from 'next/font/google';
 import { cn } from '@/lib/utils';
 import { AppProviders } from '@/app/providers';
+import Hearts from '@/components/shared/Hearts';
 
 const alegreya = Alegreya({
   subsets: ['latin'],
@@ -26,6 +27,7 @@ export default function RootLayout({
       </head>
       <body className={cn('font-body antialiased', alegreya.className)}>
         <AppProviders>
+          <Hearts />
           <main>{children}</main>
         </AppProviders>
       </body>

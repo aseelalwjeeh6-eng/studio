@@ -4,25 +4,25 @@
 
 @layer base {
   :root {
-    --background: 20 18% 13%;
-    --foreground: 30 30% 95%;
-    --card: 20 18% 18%;
+    --background: 345 100% 4%; /* Deep, desaturated burgundy */
+    --foreground: 30 30% 95%; /* Soft white/cream for text */
+    --card: 345 70% 8%; /* Slightly lighter burgundy for cards */
     --card-foreground: 30 30% 95%;
-    --popover: 20 18% 18%;
+    --popover: 345 70% 8%;
     --popover-foreground: 30 30% 95%;
-    --primary: 345 80% 55%;
+    --primary: 345 76% 27%; /* Burgundy for main actions */
     --primary-foreground: 30 30% 95%;
-    --secondary: 20 10% 25%;
+    --secondary: 345 20% 15%; /* Darker shade for secondary elements */
     --secondary-foreground: 30 30% 95%;
-    --muted: 20 10% 25%;
+    --muted: 345 20% 15%;
     --muted-foreground: 30 20% 75%;
-    --accent: 330 60% 60%;
-    --accent-foreground: 30 30% 95%;
+    --accent: 45 68% 57%; /* Gold for highlights */
+    --accent-foreground: 345 100% 4%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 30 30% 95%;
-    --border: 20 18% 25%;
-    --input: 20 18% 22%;
-    --ring: 330 60% 60%;
+    --border: 345 30% 20%; /* Burgundy-tinted border */
+    --input: 345 40% 12%; /* Dark burgundy for input fields */
+    --ring: 45 68% 57%; /* Gold for focus rings */
     --radius: 1rem;
     --app-background-image: none;
   }
@@ -69,6 +69,29 @@
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
+  }
+
+  .romantic {
+    --background: 345 100% 4%; /* #26000A */
+    --foreground: 30 30% 95%; /* Off-white */
+    --card: 345 70% 8%; /* #380A14 */
+    --card-foreground: 30 30% 95%;
+    --popover: 345 70% 8%;
+    --popover-foreground: 30 30% 95%;
+    --primary: 345 100% 25%; /* #800020 */
+    --primary-foreground: 45 68% 87%; /* Lighter Gold */
+    --secondary: 345 40% 12%; /* #3D141D */
+    --secondary-foreground: 30 30% 95%;
+    --muted: 345 20% 15%;
+    --muted-foreground: 30 20% 75%;
+    --accent: 45 68% 57%; /* #D4AF37 */
+    --accent-foreground: 345 100% 4%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 30 30% 95%;
+    --border: 345 30% 20%;
+    --input: 345 40% 12%;
+    --ring: 45 68% 57%;
+    --radius: 1.25rem;
   }
 }
 
