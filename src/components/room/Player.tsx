@@ -79,9 +79,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   const isPlayerReady = useRef(false);
   const isSeekingRef = useRef(false);
   const hostSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  const [showControls, setShowControls] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -213,22 +211,6 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     if (htmlPlayerRef.current) htmlPlayerRef.current.currentTime = newTime;
     
     handleStateChange(getPlayerState() === 1, newTime);
-  };
-  
-  // --- UI Controls ---
-  const hideControlsAfterDelay = () => {
-    if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-    }
-    controlsTimeoutRef.current = setTimeout(() => {
-        setShowControls(false);
-    }, 3000);
-  };
-
-  const toggleControls = () => {
-      if (!canControl || urlType === 'empty' || urlType === 'iframe') return;
-      setShowControls(true);
-      hideControlsAfterDelay();
   };
   
   // --- YouTube Player Event Handlers ---
@@ -374,11 +356,7 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
 
     return (
       <div 
-        className={cn(
-            "absolute inset-0 z-20 flex flex-col justify-between p-4 bg-black/30 transition-opacity duration-300",
-            showControls ? "opacity-100" : "opacity-0"
-        )}
-        onMouseMove={hideControlsAfterDelay}
+        className="absolute inset-0 z-20 flex flex-col justify-between p-4 bg-black/30 opacity-100"
       >
         <div></div>
 
@@ -415,7 +393,6 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
       </div>
       <div 
         className="absolute inset-0 w-full h-full bg-transparent z-10"
-        onClick={toggleControls}
       />
       {renderCustomControls()}
     </div>
