@@ -2,21 +2,21 @@ diff --git a/node_modules/@livekit/components-react/dist/components/participant/
 index dd21f57..75ee477 100644
 --- a/node_modules/@livekit/components-react/dist/components/participant/ParticipantTile.d.ts
 +++ b/node_modules/@livekit/components-react/dist/components/participant/ParticipantTile.d.ts
-@@ -10,4 +10,4 @@
+@@ -10,4 +10,6 @@
   * @public
   */
- export declare function ParticipantTile({ participant, children, source, onParticipantClick, selectable, ...htmlProps }: ParticipantTileProps): React.JSX.Element;
+ export declare function ParticipantTile(props: ParticipantTileProps): React.JSX.Element;
 -export {};
-\ No newline at end of file
-+export { type ParticipantTileProps };
++export type { ParticipantTileProps };
++export { ParticipantTile };
 diff --git a/node_modules/@livekit/components-react/dist/components/participant/ParticipantTile.js b/node_modules/@livekit/components-react/dist/components/participant/ParticipantTile.js
 index 927d35b..7726307 100644
 --- a/node_modules/@livekit/components-react/dist/components/participant/ParticipantTile.js
 +++ b/node_modules/@livekit/components-react/dist/components/participant/ParticipantTile.js
-@@ -35,4 +35,4 @@
+@@ -35,4 +35,5 @@
    );
  }
  
 -export { ParticipantTile };
-\ No newline at end of file
-+export { ParticipantTile, ParticipantTile as ParticipantTileProps };
++export { ParticipantTile };
++export const ParticipantTileProps = ParticipantTile;
