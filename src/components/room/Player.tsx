@@ -82,6 +82,9 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [showControls, setShowControls] = useState(false);
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
 
   // --- Generic Player Control ---
   const getCurrentPlayerTime = () => {
@@ -211,6 +214,16 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
     if (htmlPlayerRef.current) htmlPlayerRef.current.currentTime = newTime;
     
     handleStateChange(getPlayerState() === 1, newTime);
+  };
+
+  const handleInteraction = () => {
+    if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+    }
+    setShowControls(true);
+    controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false);
+    }, 3000);
   };
   
   // --- YouTube Player Event Handlers ---
@@ -356,7 +369,10 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
 
     return (
       <div 
-        className="absolute inset-0 z-20 flex flex-col justify-between p-4 bg-black/30 opacity-100"
+        className={cn(
+            "absolute inset-0 z-20 flex flex-col justify-between p-4 bg-black/30 transition-opacity duration-300",
+            showControls ? "opacity-100" : "opacity-0"
+        )}
       >
         <div></div>
 
@@ -387,13 +403,18 @@ const Player = ({ videoUrl, onSetVideo, canControl, onSearchClick, playerState, 
   };
 
   return (
-    <div className="aspect-video w-full rounded-lg overflow-hidden shadow-md bg-black relative">
+    <div 
+        className="aspect-video w-full rounded-lg overflow-hidden shadow-md bg-black relative"
+        onMouseMove={handleInteraction}
+        onClick={handleInteraction}
+        onMouseLeave={() => {
+            if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+            setShowControls(false);
+        }}
+    >
       <div className="absolute inset-0 w-full h-full">
          {renderContent()}
       </div>
-      <div 
-        className="absolute inset-0 w-full h-full bg-transparent z-10"
-      />
       {renderCustomControls()}
     </div>
   );
